@@ -77,6 +77,21 @@
       #post-form input {
         flex: 1;
       }
+      .post {
+          border: 1px solid #B0D944;
+          padding: .5rem;
+          margin-bottom: .5rem;
+      }
+
+      .post-header {
+          font-size: 0.8rem;
+          opacity: 0.8;
+          margin-bottom: .25rem;
+      }
+
+      .post-body {
+          font-size: 1rem;
+      }
     </style>
     <script type="module" src="./app.js"></script>
   </head>
@@ -105,6 +120,9 @@
           <div><strong>Peer connessi:</strong> <span id="peers-count">0</span></div>
         </div>
         <div id="posts"></div>
+          <div>
+              <input id="feed-name" placeholder="Nome feed (es. tech, personale...)" />
+          </div>
         <form id="post-form">
           <input id="post-text" type="text" placeholder="Scrivi un post..." required />
           <button type="submit">Invia</button>

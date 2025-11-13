@@ -23,6 +23,7 @@ const joinForm = document.getElementById('join-form')
 const feedKeyInput = document.getElementById('feed-key')
 const postForm = document.getElementById('post-form')
 const postInput = document.getElementById('post-text')
+const feedNameInput = document.getElementById('feed-name')
 
 // Initialise Corestore and Hyperswarm
 const store = new Corestore(config.storage)
@@ -87,13 +88,25 @@ async function apply (nodes, view, host) {
 
 // Show a message in the posts div
 function appendPostToUI (post) {
-  const div = document.createElement('div')
-  const date = new Date(post.timestamp)
-  const formatted = `${date.toLocaleString()} <${post.author}> ${post.text}`
-  div.textContent = formatted
-  postsDiv.appendChild(div)
-  // Scroll to bottom
-  postsDiv.scrollTop = postsDiv.scrollHeight
+    const wrapper = document.createElement('div')
+    wrapper.className = 'post'
+
+    const date = new Date(post.timestamp)
+    const feedLabel = post.feed ? `[${post.feed}] ` : ''
+
+    const header = document.createElement('div')
+    header.className = 'post-header'
+    header.textContent = `${date.toLocaleString()} ${feedLabel}<${post.author}>`
+
+    const body = document.createElement('div')
+    body.className = 'post-body'
+    body.textContent = post.text
+
+    wrapper.appendChild(header)
+    wrapper.appendChild(body)
+
+    postsDiv.appendChild(wrapper)
+    postsDiv.scrollTop = postsDiv.scrollHeight
 }
 
 // Display any new posts since lastSeq
@@ -185,18 +198,22 @@ async function joinFeed (e) {
 
 // Handle posting a new message
 async function onPostSubmit (e) {
-  e.preventDefault()
-  const text = postInput.value.trim()
-  if (!text) return
-  postInput.value = ''
-  try {
-    const author = b4a.toString(writerCore.key, 'hex').substring(0, 6)
-    const post = { author, text, timestamp: Date.now() }
-    await base.append(post)
-  } catch (err) {
-    console.error('Append failed', err)
-    alert('Impossibile inviare il post')
-  }
+    e.preventDefault()
+    const text = postInput.value.trim()
+    if (!text) return
+
+    const feedName = (feedNameInput.value.trim() || 'main')
+
+    postInput.value = ''
+    try {
+        const author = b4a.toString(writerCore.key, 'hex').substring(0, 6)
+        const post = { feed: feedName, author, text, timestamp: Date.now() }
+        await base.append(post)
+        await displayNewPosts()
+    } catch (err) {
+        console.error('Append failed', err)
+        alert('Impossibile inviare il post')
+    }
 }
 
 // Attach event listeners to UI elements
