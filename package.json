@@ -19,5 +19,13 @@
   "devDependencies": {
     "brittle": "^3.0.0",
     "pear-interface": "^1.0.0"
+  },
+  "dependencies": {
+    "autobase": "^7.22.0",
+    "b4a": "^1.7.3",
+    "bare-readline": "^1.2.0",
+    "bare-tty": "^5.0.3",
+    "corestore": "^7.6.1",
+    "hyperswarm": "^4.14.2"
   }
 }
