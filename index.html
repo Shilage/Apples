@@ -117,8 +117,20 @@
       <!-- Feed UI -->
       <div id="feed" class="hidden">
         <div id="header">
-          <div><strong>Feed key:</strong> <span id="current-key"></span></div>
-          <div><strong>Peer connessi:</strong> <span id="peers-count">0</span></div>
+            <div>
+                <strong>Feed key:</strong> <span id="current-key"></span>
+            </div>
+            <div>
+                <strong>Peer connessi:</strong> <span id="peers-count">0</span>
+            </div>
+            <div>
+                <label for="feed-select">Feed attivi:</label>
+                <select id="feed-select"></select>
+            </div>
+            <form id="add-feed-form">
+                <input id="add-feed-key" placeholder="Aggiungi feed key..." />
+                <button type="submit">Join feed</button>
+            </form>
         </div>
         <div id="posts"></div>
           <div>
