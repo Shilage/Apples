@@ -111,13 +111,15 @@ function appendPostToUI (post) {
 
 // Display any new posts since lastSeq
 async function displayNewPosts () {
-  if (!base || !base.view) return
-  await base.view.update()
-  while (lastSeq < base.view.length) {
-    const post = await base.view.get(lastSeq)
-    appendPostToUI(post)
-    lastSeq++
-  }
+    if (!base || !base.view) return
+
+    await base.update()
+
+    while (lastSeq < base.view.length) {
+        const post = await base.view.get(lastSeq)
+        appendPostToUI(post)
+        lastSeq++
+    }
 }
 
 // Setup event listeners for Autobase updates
