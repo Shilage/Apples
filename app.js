@@ -1,5 +1,4 @@
 // Microblog GUI using Pear Runtime, Corestore, Autobase and Hyperswarm.
-// This script is loaded in the browser context of the Pear desktop app.
 
 /** @typedef {import('pear-interface')} */
 /* global Pear */
@@ -11,75 +10,82 @@ import b4a from 'b4a'
 
 const { teardown, updates, config } = Pear
 
-// Grab DOM elements
+console.log('Pear storage path:', config.storage)
+
+// --- DOM ---
+
 const setupDiv = document.getElementById('setup')
 const loadingDiv = document.getElementById('loading')
 const feedDiv = document.getElementById('feed')
 const postsDiv = document.getElementById('posts')
+
 const peersCountSpan = document.getElementById('peers-count')
 const currentKeySpan = document.getElementById('current-key')
+
 const createBtn = document.getElementById('create-feed')
 const joinForm = document.getElementById('join-form')
 const feedKeyInput = document.getElementById('feed-key')
+
 const feedNameInput = document.getElementById('feed-name')
-const feedSelect = document.getElementById('feed-select')
 const postForm = document.getElementById('post-form')
 const postInput = document.getElementById('post-text')
-const addFeedForm = document.getElementById('add-feed-form')
-const addFeedKeyInput = document.getElementById('add-feed-key')
 
+const feedSelect = document.getElementById('feed-select')
+const addFeedInput = document.getElementById('add-feed-key')
+const addFeedBtn = document.getElementById('add-feed-btn')
 
-// Initialise Corestore and Hyperswarm
+// --- Corestore + Swarm ---
+
 const store = new Corestore(config.storage)
 await store.ready()
+
 const swarm = new Hyperswarm()
-// Clean up on exit
 teardown(() => swarm.destroy())
-console.log('Pear storage path:', config.storage)
 
-swarm.on('connection', (conn) => {
-    // replica tutti i core (inclusi quelli usati da Autobase) su questa connessione
-    store.replicate(conn)
-})
-
-// Aggiornamento numero peer
+swarm.on('connection', (conn) => store.replicate(conn))
 swarm.on('update', () => {
     peersCountSpan.textContent = swarm.connections.size
 })
-// writer "identità" unica
+
+// hot reload in dev
+updates(() => Pear.reload())
+
+// --- Writer identità ---
+
 let writerCore = null
+
 async function ensureWriterCore () {
     if (writerCore) return
     writerCore = store.get({ name: 'writer', valueEncoding: 'json' })
     await writerCore.ready()
 }
 
-// multi-feed: baseKeyHex → { base, lastSeq }
+// --- Multi-feed state ---
+// baseKeyHex -> { base, lastSeq }
 const feeds = new Map()
-let activeFeedKey = null
+let activeFeedKey = null      // cosa sto guardando
+let homeFeedKey = null        // dove scrivo i miei post
 
-// Open handler for Autobase: returns a Hypercore to store the view of posts
+// --- Autobase handlers ---
+
 function open (autostore) {
-  return autostore.get({ name: 'view', valueEncoding: 'json' })
+    return autostore.get({ name: 'view', valueEncoding: 'json' })
 }
 
-// Apply handler for Autobase: append values to the view and handle addWriter messages
+// robust apply: gestisce addWriter in vari formati e non lancia mai
 async function apply (nodes, view, host) {
     for (const { value } of nodes) {
         if (!value) continue
 
         if (value.addWriter) {
+            let v = value.addWriter
             let writerKeyBuf = null
-            const v = value.addWriter
 
             if (typeof v === 'string') {
-                // nuovo formato: chiave del writer in esadecimale
                 writerKeyBuf = b4a.from(v, 'hex')
             } else if (v && typeof v === 'object' && v.type === 'Buffer' && Array.isArray(v.data)) {
-                // vecchio formato JSONizzato di un Buffer: { type: 'Buffer', data: [...] }
                 writerKeyBuf = b4a.from(v.data)
             } else if (v instanceof Uint8Array) {
-                // già un buffer/Uint8Array
                 writerKeyBuf = b4a.from(v)
             }
 
@@ -91,12 +97,12 @@ async function apply (nodes, view, host) {
             continue
         }
 
-        // normali post del microblog
         await view.append(value)
     }
 }
 
-// Show a message in the posts div
+// --- Rendering post ---
+
 function appendPostToUI (post) {
     const wrapper = document.createElement('div')
     wrapper.className = 'post'
@@ -119,76 +125,168 @@ function appendPostToUI (post) {
     postsDiv.scrollTop = postsDiv.scrollHeight
 }
 
-// Display any new posts since lastSeq
+// --- Lettura view per un singolo feed ---
+
 async function displayNewPostsFor (baseKeyHex) {
-    const feedState = feeds.get(baseKeyHex)
-    if (!feedState) return
+    const state = feeds.get(baseKeyHex)
+    if (!state) return
 
-    const { base } = feedState
-
-    // è l'Autobase che aggiorna la view
+    const { base } = state
     await base.update()
 
-    while (feedState.lastSeq < base.view.length) {
-        const post = await base.view.get(feedState.lastSeq)
-        feedState.lastSeq++
-
-        // renderizza solo se questo feed è quello attivo
+    while (state.lastSeq < base.view.length) {
+        const post = await base.view.get(state.lastSeq)
+        state.lastSeq++
         if (activeFeedKey === baseKeyHex) {
             appendPostToUI(post)
         }
     }
 }
 
-// Setup event listeners for Autobase updates
 function setupBaseListeners (baseKeyHex) {
-    const feedState = feeds.get(baseKeyHex)
-    if (!feedState) return
+    const state = feeds.get(baseKeyHex)
+    if (!state) return
 
-    feedState.base.on('update', () => {
+    state.base.on('update', () => {
         displayNewPostsFor(baseKeyHex).catch((err) => console.error(err))
     })
 }
 
-// Initialise writer core and Autobase, optionally joining an existing base
-async function initFeed (bootstrapKeyBuffer) {
+// --- UI: select feed ---
+
+function refreshFeedSelect () {
+    const previous = feedSelect.value
+    feedSelect.innerHTML = ''
+
+    for (const keyHex of feeds.keys()) {
+        const opt = document.createElement('option')
+        opt.value = keyHex
+        let label = keyHex.slice(0, 16) + '…'
+        if (homeFeedKey === keyHex) label = 'HOME ' + label
+        opt.textContent = label
+        feedSelect.appendChild(opt)
+    }
+
+    if (feeds.size === 0) {
+        feedSelect.disabled = true
+        currentKeySpan.textContent = ''
+        return
+    }
+
+    feedSelect.disabled = false
+    const target = feeds.has(previous)
+        ? previous
+        : (activeFeedKey || [...feeds.keys()][0])
+
+    feedSelect.value = target
+}
+
+function setActiveFeed (baseKeyHex) {
+    if (!feeds.has(baseKeyHex)) return
+
+    activeFeedKey = baseKeyHex
+    currentKeySpan.textContent = baseKeyHex
+
+    // reset UI e ricarica solo i post di questo feed
+    postsDiv.innerHTML = ''
+    const state = feeds.get(baseKeyHex)
+    state.lastSeq = 0
+    displayNewPostsFor(baseKeyHex).catch((err) => console.error(err))
+
+    if (feedSelect.value !== baseKeyHex) {
+        feedSelect.value = baseKeyHex
+    }
+}
+
+// --- Creazione / join Autobase ---
+
+async function initFeed (bootstrapKeyBuffer, { makeHome = false } = {}) {
     await ensureWriterCore()
 
-    const base = new Autobase(store, bootstrapKeyBuffer, {
-        open,
-        apply,
-        valueEncoding: 'json'
-    })
-    await base.ready()
+    const bootstrapHex = bootstrapKeyBuffer
+        ? b4a.toString(bootstrapKeyBuffer, 'hex')
+        : '(nuovo feed)'
+    console.log('[initFeed] bootstrap =', bootstrapHex)
 
-    // se è una nuova base, appendiamo il messaggio addWriter
-    if (!bootstrapKeyBuffer) {
+    const isNew = !bootstrapKeyBuffer
+    let base
+    let feedIdHex
+
+    if (isNew) {
+        // --- CASO 1: NUOVO FEED PERSONALE (HOME) ---
+        base = new Autobase(store, null, {
+            open,
+            apply,
+            valueEncoding: 'json'
+        })
+
+        await base.ready()
+
+        // aggiungiamo noi stessi come writer
         const writerKeyHex = b4a.toString(writerCore.key, 'hex')
+        console.log('[initFeed] nuova base, addWriter =', writerKeyHex)
         await base.append({ addWriter: writerKeyHex })
+
+        // topic = la feed key generata da Autobase
+        const topic = base.key
+        const discovery = swarm.join(topic)
+        await discovery.flushed()
+
+        feedIdHex = b4a.toString(base.key, 'hex')
+    } else {
+        // --- CASO 2: FEED ESTERNO (SOLO LETTURA) ---
+        // qui la "feed key" CE L’HAI GIÀ: è bootstrapKeyBuffer
+        base = new Autobase(store, bootstrapKeyBuffer, {
+            open,
+            apply,
+            valueEncoding: 'json'
+        })
+
+        // usiamo direttamente la chiave che hai incollato come ID feed
+        feedIdHex = b4a.toString(bootstrapKeyBuffer, 'hex')
+
+        // partiamo SUBITO con la swarm su quella chiave
+        const topic = bootstrapKeyBuffer
+        const discovery = swarm.join(topic)
+        await discovery.flushed()
+
+        // e lasciamo che Autobase si sistemi in background
+        base.ready().then(() => {
+            console.log('[initFeed] ready (join) per', feedIdHex)
+        }).catch((err) => {
+            console.error('[initFeed] ready error (join) per', feedIdHex, err)
+        })
     }
 
-    // join sul discoveryKey della base
-    const discovery = swarm.join(base.discoveryKey)
-    await discovery.flushed()
+    console.log('[initFeed] feedIdHex =', feedIdHex)
 
-    const baseKeyHex = b4a.toString(base.key, 'hex')
-
-    // registra la base nella mappa se non c'è già
-    if (!feeds.has(baseKeyHex)) {
-        feeds.set(baseKeyHex, { base, lastSeq: 0 })
-        setupBaseListeners(baseKeyHex)
+    if (!feeds.has(feedIdHex)) {
+        feeds.set(feedIdHex, { base, lastSeq: 0 })
+        console.log('[initFeed] feed registrato, feeds =', [...feeds.keys()])
+        setupBaseListeners(feedIdHex)
         refreshFeedSelect()
+    } else {
+        console.log('[initFeed] feed già noto, reuse')
     }
 
-    return baseKeyHex
+    if (makeHome && !homeFeedKey) {
+        homeFeedKey = feedIdHex
+        console.log('[initFeed] homeFeedKey impostata =', homeFeedKey)
+    }
+
+    return feedIdHex
 }
+
+
+// --- Handlers high-level ---
 
 async function createFeed () {
     setupDiv.classList.add('hidden')
     loadingDiv.classList.remove('hidden')
 
     try {
-        const baseKeyHex = await initFeed(null)
+        // nuova base: questa diventa la nostra HOME scrivibile
+        const baseKeyHex = await initFeed(null, { makeHome: true })
         loadingDiv.classList.add('hidden')
         feedDiv.classList.remove('hidden')
         setActiveFeed(baseKeyHex)
@@ -210,10 +308,10 @@ async function joinFeed (e) {
 
     try {
         const bootstrapBuffer = b4a.from(keyStr, 'hex')
-        const baseKeyHex = await initFeed(bootstrapBuffer)
+        const baseKeyHex = await initFeed(bootstrapBuffer, { makeHome: false })
         loadingDiv.classList.add('hidden')
         feedDiv.classList.remove('hidden')
-        setActiveFeed(baseKeyHex)
+        setActiveFeed(baseKeyHex) // guardo quel feed, ma NON è home (solo lettura)
     } catch (err) {
         console.error(err)
         alert('Errore nell\'unione al feed. Chiave non valida o peer non trovato.')
@@ -221,14 +319,44 @@ async function joinFeed (e) {
         setupDiv.classList.remove('hidden')
     }
 }
-// Handle posting a new message
+
+// join di un nuovo feed mentre l’app è già avviata
+async function joinAdditionalFeed () {
+    const keyStr = addFeedInput.value.trim()
+    if (!keyStr) {
+        alert('Inserisci una feed key completa (64 caratteri hex).')
+        return
+    }
+
+    console.log('[joinAdditionalFeed] richiesta join feed key =', keyStr)
+    addFeedInput.value = ''
+
+    try {
+        const bootstrapBuffer = b4a.from(keyStr, 'hex')
+
+        const baseKeyHex = await initFeed(bootstrapBuffer, { makeHome: false })
+        console.log('[joinAdditionalFeed] initFeed OK, baseKeyHex =', baseKeyHex)
+
+        console.log('[joinAdditionalFeed] feeds attivi ora =', [...feeds.keys()])
+
+        setActiveFeed(baseKeyHex)
+        alert('Join riuscito. Ora stai seguendo il feed ' + baseKeyHex.slice(0, 16) + '…')
+    } catch (err) {
+        console.error('[joinAdditionalFeed] errore', err)
+        alert('Errore nel join del nuovo feed. Controlla la chiave (64 hex) e riprova.')
+    }
+}
+
+
+
+// post: scriviamo SEMPRE e SOLO sulla nostra HOME
 async function onPostSubmit (e) {
     e.preventDefault()
     const text = postInput.value.trim()
     if (!text) return
 
-    if (!activeFeedKey || !feeds.has(activeFeedKey)) {
-        alert('Nessun feed attivo')
+    if (!homeFeedKey || !feeds.has(homeFeedKey)) {
+        alert('Non hai ancora un feed personale (crea un feed con "Create").')
         return
     }
 
@@ -240,86 +368,27 @@ async function onPostSubmit (e) {
         const author = b4a.toString(writerCore.key, 'hex').substring(0, 6)
         const post = { feed: feedName, author, text, timestamp: Date.now() }
 
-        const feedState = feeds.get(activeFeedKey)
-        await feedState.base.append(post)
-        await displayNewPostsFor(activeFeedKey)
+        const state = feeds.get(homeFeedKey)
+        await state.base.append(post)
+        await displayNewPostsFor(homeFeedKey)
     } catch (err) {
         console.error('Append failed', err)
         alert('Impossibile inviare il post')
     }
 }
 
-function refreshFeedSelect () {
-    const prev = feedSelect.value
-    feedSelect.innerHTML = ''
+// --- Event listeners ---
 
-    for (const keyHex of feeds.keys()) {
-        const opt = document.createElement('option')
-        opt.value = keyHex
-        opt.textContent = keyHex.slice(0, 16) + '…'
-        opt.title = keyHex
-        feedSelect.appendChild(opt)
-    }
-
-    if (feeds.size === 0) {
-        feedSelect.disabled = true
-        return
-    }
-
-    feedSelect.disabled = false
-    const target = feeds.has(prev) ? prev : [...feeds.keys()][0]
-    feedSelect.value = target
-}
-
-function setActiveFeed (baseKeyHex) {
-    if (!feeds.has(baseKeyHex)) return
-
-    activeFeedKey = baseKeyHex
-    currentKeySpan.textContent = baseKeyHex
-
-    // reset UI e ricarica i post di quel feed
-    postsDiv.innerHTML = ''
-    const feedState = feeds.get(baseKeyHex)
-    feedState.lastSeq = 0
-    displayNewPostsFor(baseKeyHex).catch((err) => console.error(err))
-
-    if (feedSelect.value !== baseKeyHex) {
-        feedSelect.value = baseKeyHex
-    }
-}
-async function joinAdditionalFeed (e) {
-    e.preventDefault()
-    const keyStr = addFeedKeyInput.value.trim()
-    if (!keyStr) return
-
-    addFeedKeyInput.value = ''
-
-    try {
-        const bootstrapBuffer = b4a.from(keyStr, 'hex')
-        // riutilizziamo initFeed: crea/join la base e la registra in feeds
-        const baseKeyHex = await initFeed(bootstrapBuffer)
-
-        // la base potrebbe già esistere (se hai messo due volte la stessa chiave),
-        // ma initFeed la gestisce. In ogni caso la rendiamo attiva.
-        setActiveFeed(baseKeyHex)
-    } catch (err) {
-        console.error(err)
-        alert('Errore nel join del nuovo feed. Chiave non valida o peer non trovato.')
-    }
-}
-
-
-// Attach event listeners to UI elements
 createBtn.addEventListener('click', createFeed)
 joinForm.addEventListener('submit', joinFeed)
 postForm.addEventListener('submit', onPostSubmit)
+
+addFeedBtn.addEventListener('click', (e) => {
+    e.preventDefault()
+    joinAdditionalFeed()
+})
+
 feedSelect.addEventListener('change', () => {
     const value = feedSelect.value
     if (value) setActiveFeed(value)
 })
-createBtn.addEventListener('click', createFeed)
-joinForm.addEventListener('submit', joinFeed)
-addFeedForm.addEventListener('submit', joinAdditionalFeed)
-
-// Optional: hot reload during development
-updates(() => Pear.reload())

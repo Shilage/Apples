@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="IT">
   <head>
     <meta charset="utf-8" />
     <title>Microblog P2P</title>
@@ -127,17 +127,18 @@
                 <label for="feed-select">Feed attivi:</label>
                 <select id="feed-select"></select>
             </div>
-            <form id="add-feed-form">
+            <div style="margin-top: 1rem;">
                 <input id="add-feed-key" placeholder="Aggiungi feed key..." />
-                <button type="submit">Join feed</button>
-            </form>
+                <button id="add-feed-btn">Join feed</button>
+            </div>
+
         </div>
         <div id="posts"></div>
           <div>
               <input id="feed-name" placeholder="Nome feed (es. tech, personale...)" />
           </div>
         <form id="post-form">
-          <input id="post-text" type="text" placeholder="Scrivi un post..." required />
+            <label for="post-text"></label><input id="post-text" type="text" placeholder="Scrivi un post..." required />
           <button type="submit">Invia</button>
         </form>
       </div>
