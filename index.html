@@ -1,147 +1,274 @@
 <!DOCTYPE html>
 <html lang="IT">
-  <head>
+<head>
     <meta charset="utf-8" />
-    <title>Microblog P2P</title>
+    <title>Apples</title>
     <style>
-      /* Basic dark theme similar to Pear examples */
-      body {
-        margin: 0;
-        padding: 0;
-        font-family: monospace;
-        background-color: #001601;
-        color: #ffffff;
-        display: flex;
-        flex-direction: column;
-        height: 100vh;
-      }
-      #titlebar {
-        -webkit-app-region: drag;
-        height: 30px;
-        width: 100%;
-        position: fixed;
-        left: 0;
-        top: 0;
-        background-color: rgba(176, 217, 68, 0.1);
-        filter: drop-shadow(2px 10px 6px #888);
-        display: flex;
-        align-items: center;
-        padding-left: 6px;
-      }
-      main {
-        flex: 1;
-        padding-top: 40px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-      }
-      button, input {
-        all: unset;
-        border: 1px ridge #B0D944;
-        background: #000;
-        color: #B0D944;
-        padding: 0.4rem;
-        margin: 0.25rem;
-        font-family: monospace;
-        font-size: 1rem;
-      }
-      button:hover {
-        background: #B0D944;
-        color: #000;
-        cursor: pointer;
-      }
-      .hidden {
-        display: none !important;
-      }
-      #feed {
-        width: 80%;
-        max-width: 600px;
-        display: flex;
-        flex-direction: column;
-      }
-      #header {
-        margin-bottom: 1rem;
-      }
-      #posts {
-        flex: 1;
-        height: 50vh;
-        overflow-y: auto;
-        border: 1px solid #B0D944;
-        padding: 0.5rem;
-        margin-bottom: 0.5rem;
-      }
-      #post-form {
-        display: flex;
-      }
-      #post-form input {
-        flex: 1;
-      }
-      .post {
-          border: 1px solid #B0D944;
-          padding: .5rem;
-          margin-bottom: .5rem;
-      }
+        :root {
+            --bg: #020617;             /* sfondo principale (molto scuro) */
+            --bg-elevated: #020c1b;    /* pannelli / card */
+            --accent: #a3e635;         /* verde lime accessibile */
+            --accent-soft: rgba(163, 230, 53, 0.16);
+            --border: #374151;
+            --border-accent: #a3e635;
+            --text: #f9fafb;           /* bianco caldo */
+            --muted: #9ca3af;          /* testo secondario */
+        }
 
-      .post-header {
-          font-size: 0.8rem;
-          opacity: 0.8;
-          margin-bottom: .25rem;
-      }
+        * {
+            box-sizing: border-box;
+        }
 
-      .post-body {
-          font-size: 1rem;
-          white-space: pre-wrap;
-      }
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: monospace;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        #titlebar {
+            -webkit-app-region: drag;
+            height: 30px;
+            width: 100%;
+            position: fixed;
+            left: 0;
+            top: 0;
+            background-color: var(--bg-elevated);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding-left: 6px;
+        }
+
+        main {
+            flex: 1;
+            padding-top: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        button,
+        input {
+            all: unset;
+            border-radius: 2px;
+            border: 1px solid var(--border-accent);
+            background-color: var(--bg-elevated);
+            color: var(--accent);
+            padding: 0.45rem 0.6rem;
+            margin: 0.25rem;
+            font-family: monospace;
+            font-size: 1rem;
+        }
+
+        button:hover {
+            background: var(--accent);
+            color: #020617;
+            cursor: pointer;
+        }
+
+        button:focus-visible,
+        input:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        input::placeholder {
+            color: var(--muted);
+            opacity: 1;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        #setup {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        #logo {
+            font-size: 5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        #feed {
+            width: 90%;
+            max-width: 900px;
+        }
+
+        #feed-shell {
+            display: grid;
+            grid-template-columns: 220px 1fr;
+            column-gap: 2rem;
+            align-items: flex-start;
+            width: 100%;
+        }
+
+        #profile-card {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        #avatar-placeholder {
+            width: 160px;
+            height: 160px;
+            border: 1px solid var(--border-accent);
+            margin-bottom: 0.3rem;
+            background-color: var(--bg-elevated);
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            cursor: pointer;
+        }
+
+        #avatar-hint {
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin: 0.3rem 0 1rem 0;
+        }
+
+        #profile-meta div {
+            margin-bottom: 0.3rem;
+        }
+
+        #nickname {
+            font-weight: bold;
+        }
+
+        #main-column {
+            background-color: var(--bg-elevated);
+            border: 1px solid var(--border);
+            padding: 0.75rem;
+        }
+
+        #header {
+            margin-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+
+        #posts {
+            flex: 1;
+            height: 50vh;
+            overflow-y: auto;
+            border: 1px solid var(--border-accent);
+            padding: 0.5rem;
+            margin-bottom: 0.5rem;
+            background-color: #020816;
+        }
+
+        .post {
+            border: 1px solid var(--border-accent);
+            padding: 0.5rem;
+            margin-bottom: 0.5rem;
+            background-color: var(--bg-elevated);
+        }
+
+        .post-header {
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-bottom: 0.25rem;
+        }
+
+        .post-body {
+            font-size: 1rem;
+            white-space: pre-wrap;
+            color: var(--text);
+        }
+
+        #feed-name {
+            width: 100%;
+            margin: 0.4rem 0;          /* nessun margine orizzontale */
+            box-sizing: border-box;    /* sicurezza extra */
+        }
+
+        #post-form {
+            display: flex;
+            align-items: center;
+        }
+
+        #post-form input {
+            flex: 1;
+            margin-right: 0.4rem;
+        }
     </style>
+
     <script type="module" src="./app.js"></script>
-  </head>
-  <body>
-    <div id="titlebar">
-      <pear-ctrl></pear-ctrl>
-      <span style="margin-left: 1rem;">P2P Microblog</span>
-    </div>
-    <main>
-      <!-- Setup screen -->
-      <div id="setup">
-        <div style="margin-bottom: 1rem; text-align: center;">
-          <button id="create-feed">Crea nuovo feed</button>
+</head>
+<body>
+<div id="titlebar">
+    <pear-ctrl></pear-ctrl>
+    <span style="margin-left: 1rem;">Apples • P2P microblog</span>
+</div>
+<main>
+    <!-- Setup screen -->
+    <div id="setup">
+        <div style="margin-bottom: 2rem;">
+            <div id="logo">🍎</div>
+            <h1>Benvenuto su Apples</h1>
         </div>
-        <div id="or" style="margin: 1rem;">- oppure -</div>
-        <form id="join-form" style="display: flex; flex-direction: column; align-items: center;">
-          <input id="feed-key" type="text" placeholder="Inserisci chiave feed" required style="width: 280px;" />
-          <button type="submit" id="join-feed">Unisciti al feed</button>
-        </form>
-      </div>
-      <div id="loading" class="hidden">In connessione...</div>
-      <!-- Feed UI -->
-      <div id="feed" class="hidden">
-        <div id="header">
-            <div>
-                <strong>Feed key:</strong> <span id="current-key"></span>
-            </div>
-            <div>
-                <strong>Peer connessi:</strong> <span id="peers-count">0</span>
-            </div>
-            <div>
-                <label for="feed-select">Feed attivi:</label>
-                <select id="feed-select"></select>
-            </div>
-            <div style="margin-top: 1rem;">
-                <input id="add-feed-key" placeholder="Aggiungi feed key..." />
-                <button id="add-feed-btn">Join feed</button>
+        <div style="margin-bottom: 1rem; text-align: center;">
+            <button id="create-feed">Crea account</button>
+        </div>
+    </div>
+    <div id="loading" class="hidden">In connessione...</div>
+    <!-- Feed UI -->
+    <div id="feed" class="hidden">
+        <div id="feed-shell">
+            <!-- Colonna sinistra: profilo -->
+            <div id="profile-card">
+                <div id="avatar-placeholder" title="Clicca per scegliere una foto"></div>
+                <input id="avatar-input" type="file" accept="image/*" class="hidden" />
+                <div id="profile-meta">
+                    <div>Nickname: <span id="nickname"></span></div>
+                    <div>Subscribers: <span id="followers-count">0</span></div>
+                    <div>Subscribed to: <span id="following-count">0</span></div>
+                </div>
             </div>
 
+            <!-- Colonna destra: feed vero e proprio -->
+            <div id="main-column">
+                <div id="header">
+                    <div><strong>Active feeds</strong></div>
+                    <div style="margin-top: 0.25rem;">
+                        <strong>Home:</strong> <span id="current-key"></span>
+                    </div>
+                    <div style="margin-top: 0.25rem;">
+                        <strong>Peer connessi:</strong> <span id="peers-count">0</span>
+                    </div>
+                    <div style="margin-top: 0.5rem;">
+                        <label for="feed-select">Feed attivi:</label>
+                        <select id="feed-select"></select>
+                    </div>
+                    <div style="margin-top: 0.5rem;">
+                        <input id="add-feed-key" placeholder="Aggiungi feed key..." />
+                        <button id="add-feed-btn">Join feed</button>
+                    </div>
+                </div>
+
+                <div id="posts"></div>
+
+                <div>
+                    <input id="feed-name" placeholder="Nome feed (es. tech, personale...)" />
+                </div>
+
+                <form id="post-form">
+                    <label for="post-text"></label>
+                    <input id="post-text" type="text" placeholder="Scrivi un post..." required />
+                    <button type="submit">Invia</button>
+                </form>
+            </div>
         </div>
-        <div id="posts"></div>
-          <div>
-              <input id="feed-name" placeholder="Nome feed (es. tech, personale...)" />
-          </div>
-        <form id="post-form">
-            <label for="post-text"></label><input id="post-text" type="text" placeholder="Scrivi un post..." required />
-          <button type="submit">Invia</button>
-        </form>
-      </div>
-    </main>
-  </body>
+    </div>
+</main>
+</body>
 </html>

@@ -23,8 +23,6 @@ const peersCountSpan = document.getElementById('peers-count')
 const currentKeySpan = document.getElementById('current-key')
 
 const createBtn = document.getElementById('create-feed')
-const joinForm = document.getElementById('join-form')
-const feedKeyInput = document.getElementById('feed-key')
 
 const feedNameInput = document.getElementById('feed-name')
 const postForm = document.getElementById('post-form')
@@ -33,6 +31,94 @@ const postInput = document.getElementById('post-text')
 const feedSelect = document.getElementById('feed-select')
 const addFeedInput = document.getElementById('add-feed-key')
 const addFeedBtn = document.getElementById('add-feed-btn')
+
+const avatarBox = document.getElementById('avatar-placeholder')
+const avatarInput = document.getElementById('avatar-input')
+const nicknameSpan = document.getElementById('nickname')
+const followersSpan = document.getElementById('followers-count')
+const followingSpan = document.getElementById('following-count')
+
+// --- Profilo utente: nickname + stats ---
+
+function generateRandomNickname () {
+    const adjectives = ['Silent', 'Happy', 'Cosmic', 'Neon', 'Swift', 'Lucky', 'Clever', 'Velvet', 'Rusty', 'Quantum']
+    const nouns = ['Apple', 'Sentry', 'Comet', 'Circuit', 'Panda', 'Falcon', 'Pixel', 'Nova', 'Echo', 'Forest']
+
+    const a = adjectives[Math.floor(Math.random() * adjectives.length)]
+    const n = nouns[Math.floor(Math.random() * nouns.length)]
+    const num = String(Math.floor(Math.random() * 10000)).padStart(4, '0')
+
+    return `${a}-${n}${num}`
+}
+
+function setupProfile () {
+    let nick = null
+    try {
+        nick = localStorage.getItem('apples.nickname')
+    } catch (_) {}
+
+    if (!nick) {
+        nick = generateRandomNickname()
+        try {
+            localStorage.setItem('apples.nickname', nick)
+        } catch (_) {}
+    }
+
+    if (nicknameSpan) nicknameSpan.textContent = nick
+
+    try {
+        const avatarData = localStorage.getItem('apples.avatar')
+        if (avatarData && avatarBox) {
+            avatarBox.style.backgroundImage = `url(${avatarData})`
+        }
+    } catch (_) {}
+}
+
+function setupAvatarUpload () {
+    if (!avatarBox || !avatarInput) return
+
+    avatarBox.addEventListener('click', () => {
+        avatarInput.click()
+    })
+
+    avatarInput.addEventListener('change', (e) => {
+        const file = e.target.files[0]
+        if (!file) return
+
+        const reader = new FileReader()
+        reader.onload = (ev) => {
+            const dataUrl = ev.target.result
+            avatarBox.style.backgroundImage = `url(${dataUrl})`
+            try {
+                localStorage.setItem('apples.avatar', dataUrl)
+            } catch (_) {}
+        }
+        reader.readAsDataURL(file)
+    })
+}
+
+// following = quanti feed sto seguendo (esclusa la mia home)
+function updateFollowingCount () {
+    if (!followingSpan) return
+    let count = 0
+    for (const key of feeds.keys()) {
+        if (homeFeedKey && key === homeFeedKey) continue
+        count++
+    }
+    followingSpan.textContent = String(count)
+}
+
+// followers = peer connessi al mio feed home in questo momento
+function updateFollowersFromPeers () {
+    if (!followersSpan) return
+
+    if (!homeFeedKey || !activeFeedKey || activeFeedKey !== homeFeedKey) {
+        followersSpan.textContent = '0'
+        return
+    }
+
+    followersSpan.textContent = String(swarm.connections.size)
+}
 
 // --- Corestore + Swarm ---
 
@@ -44,7 +130,9 @@ teardown(() => swarm.destroy())
 
 swarm.on('connection', (conn) => store.replicate(conn))
 swarm.on('update', () => {
-    peersCountSpan.textContent = swarm.connections.size
+    const peers = swarm.connections.size
+    peersCountSpan.textContent = peers
+    updateFollowersFromPeers()
 })
 
 // hot reload in dev
@@ -65,6 +153,10 @@ async function ensureWriterCore () {
 const feeds = new Map()
 let activeFeedKey = null      // cosa sto guardando
 let homeFeedKey = null        // dove scrivo i miei post
+
+//Initialize nicknames on UI
+setupProfile()
+setupAvatarUpload()
 
 // --- Autobase handlers ---
 
@@ -191,11 +283,13 @@ function setActiveFeed (baseKeyHex) {
     postsDiv.innerHTML = ''
     const state = feeds.get(baseKeyHex)
     state.lastSeq = 0
+
     displayNewPostsFor(baseKeyHex).catch((err) => console.error(err))
 
     if (feedSelect.value !== baseKeyHex) {
         feedSelect.value = baseKeyHex
     }
+    updateFollowersFromPeers()
 }
 
 // --- Creazione / join Autobase ---
@@ -209,54 +303,62 @@ async function initFeed (bootstrapKeyBuffer, { makeHome = false } = {}) {
     console.log('[initFeed] bootstrap =', bootstrapHex)
 
     const isNew = !bootstrapKeyBuffer
+    let baseStore
     let base
     let feedIdHex
 
     if (isNew) {
         // --- CASO 1: NUOVO FEED PERSONALE (HOME) ---
-        base = new Autobase(store, null, {
+        // namespace dedicato per la home, così non collide con altri feed
+        baseStore = store.namespace('home-base')
+
+        base = new Autobase(baseStore, null, {
             open,
             apply,
             valueEncoding: 'json'
         })
 
+        // 1) ci assicuriamo che l'autobase sia pronto
         await base.ready()
 
-        // aggiungiamo noi stessi come writer
+        // 2) aggiungiamo noi stessi come writer
         const writerKeyHex = b4a.toString(writerCore.key, 'hex')
-        console.log('[initFeed] nuova base, addWriter =', writerKeyHex)
+        console.log('[initFeed] nuova base HOME, addWriter =', writerKeyHex)
         await base.append({ addWriter: writerKeyHex })
 
-        // topic = la feed key generata da Autobase
-        const topic = base.key
-        const discovery = swarm.join(topic)
+        // 3) swarm sulla discoveryKey (pattern ufficiale)
+        const discovery = swarm.join(base.discoveryKey)
         await discovery.flushed()
 
+        // 4) ID del feed = chiave dell'autobase
         feedIdHex = b4a.toString(base.key, 'hex')
     } else {
-        // --- CASO 2: FEED ESTERNO (SOLO LETTURA) ---
-        // qui la "feed key" CE L’HAI GIÀ: è bootstrapKeyBuffer
-        base = new Autobase(store, bootstrapKeyBuffer, {
+        // --- CASO 2: JOIN DI UN FEED ESISTENTE (SOLO LETTURA) ---
+        // namespace dedicato per questo feed, derivato dalla sua chiave
+        const short = b4a.toString(bootstrapKeyBuffer, 'hex').slice(0, 16)
+        baseStore = store.namespace('follow-' + short)
+
+        base = new Autobase(baseStore, bootstrapKeyBuffer, {
             open,
             apply,
             valueEncoding: 'json'
         })
 
-        // usiamo direttamente la chiave che hai incollato come ID feed
-        feedIdHex = b4a.toString(bootstrapKeyBuffer, 'hex')
+        // 1) sincronizziamo l'autobase locale con il bootstrap remoto
+        await base.ready()
 
-        // partiamo SUBITO con la swarm su quella chiave
-        const topic = bootstrapKeyBuffer
-        const discovery = swarm.join(topic)
+        // 2) swarm sulla discoveryKey dell'autobase
+        const discovery = swarm.join(base.discoveryKey)
         await discovery.flushed()
 
-        // e lasciamo che Autobase si sistemi in background
-        base.ready().then(() => {
-            console.log('[initFeed] ready (join) per', feedIdHex)
-        }).catch((err) => {
-            console.error('[initFeed] ready error (join) per', feedIdHex, err)
-        })
+        // 3) feedId ufficiale = base.key (in pratica uguale al bootstrap)
+        feedIdHex = b4a.toString(base.key, 'hex')
     }
+
+    // log errori di Autobase (incluso il famoso "bootstrap lock" se mai ricapita)
+    base.on('error', (err) => {
+        console.error('[autobase error]', feedIdHex, err)
+    })
 
     console.log('[initFeed] feedIdHex =', feedIdHex)
 
@@ -265,6 +367,7 @@ async function initFeed (bootstrapKeyBuffer, { makeHome = false } = {}) {
         console.log('[initFeed] feed registrato, feeds =', [...feeds.keys()])
         setupBaseListeners(feedIdHex)
         refreshFeedSelect()
+        updateFollowingCount()
     } else {
         console.log('[initFeed] feed già noto, reuse')
     }
@@ -285,11 +388,12 @@ async function createFeed () {
     loadingDiv.classList.remove('hidden')
 
     try {
-        // nuova base: questa diventa la nostra HOME scrivibile
         const baseKeyHex = await initFeed(null, { makeHome: true })
+
         loadingDiv.classList.add('hidden')
         feedDiv.classList.remove('hidden')
-        setActiveFeed(baseKeyHex)
+
+        setActiveFeed(baseKeyHex)   // la home è anche il primo feed che guardi
     } catch (err) {
         console.error(err)
         alert('Errore nella creazione del feed')
@@ -298,52 +402,34 @@ async function createFeed () {
     }
 }
 
-async function joinFeed (e) {
-    e.preventDefault()
-    const keyStr = feedKeyInput.value.trim()
-    if (!keyStr) return
-
-    setupDiv.classList.add('hidden')
-    loadingDiv.classList.remove('hidden')
-
-    try {
-        const bootstrapBuffer = b4a.from(keyStr, 'hex')
-        const baseKeyHex = await initFeed(bootstrapBuffer, { makeHome: false })
-        loadingDiv.classList.add('hidden')
-        feedDiv.classList.remove('hidden')
-        setActiveFeed(baseKeyHex) // guardo quel feed, ma NON è home (solo lettura)
-    } catch (err) {
-        console.error(err)
-        alert('Errore nell\'unione al feed. Chiave non valida o peer non trovato.')
-        loadingDiv.classList.add('hidden')
-        setupDiv.classList.remove('hidden')
-    }
-}
-
-// join di un nuovo feed mentre l’app è già avviata
 async function joinAdditionalFeed () {
     const keyStr = addFeedInput.value.trim()
-    if (!keyStr) {
-        alert('Inserisci una feed key completa (64 caratteri hex).')
+    if (!keyStr) return
+
+    console.log('[joinAdditionalFeed] richiesta join feed key =', keyStr)
+
+    if (feeds.has(keyStr)) {
+        console.log('[joinAdditionalFeed] feed già noto, seleziono semplicemente')
+        setActiveFeed(keyStr)
+        addFeedInput.value = ''
         return
     }
 
-    console.log('[joinAdditionalFeed] richiesta join feed key =', keyStr)
-    addFeedInput.value = ''
-
     try {
         const bootstrapBuffer = b4a.from(keyStr, 'hex')
-
         const baseKeyHex = await initFeed(bootstrapBuffer, { makeHome: false })
-        console.log('[joinAdditionalFeed] initFeed OK, baseKeyHex =', baseKeyHex)
 
-        console.log('[joinAdditionalFeed] feeds attivi ora =', [...feeds.keys()])
+        // a) Se vuoi che cambi subito feed:
+        // setActiveFeed(baseKeyHex)
 
-        setActiveFeed(baseKeyHex)
-        alert('Join riuscito. Ora stai seguendo il feed ' + baseKeyHex.slice(0, 16) + '…')
+        // b) Se NON vuoi “passare” automaticamente:
+        //    commenta la riga sopra, resta sulla home e il feed nuovo lo scegli dal menu
+        // setActiveFeed(baseKeyHex)
+
+        addFeedInput.value = ''
     } catch (err) {
-        console.error('[joinAdditionalFeed] errore', err)
-        alert('Errore nel join del nuovo feed. Controlla la chiave (64 hex) e riprova.')
+        console.error(err)
+        alert('Errore nell\'unione al feed. Chiave non valida o peer non trovato.')
     }
 }
 
@@ -355,32 +441,31 @@ async function onPostSubmit (e) {
     const text = postInput.value.trim()
     if (!text) return
 
-    if (!homeFeedKey || !feeds.has(homeFeedKey)) {
-        alert('Non hai ancora un feed personale (crea un feed con "Create").')
+    if (!homeFeedKey) {
+        console.warn('[post] niente homeFeedKey, ignoro')
         return
     }
 
-    const feedName = (feedNameInput?.value.trim() || 'main')
-    postInput.value = ''
-
-    try {
-        await ensureWriterCore()
-        const author = b4a.toString(writerCore.key, 'hex').substring(0, 6)
-        const post = { feed: feedName, author, text, timestamp: Date.now() }
-
-        const state = feeds.get(homeFeedKey)
-        await state.base.append(post)
-        await displayNewPostsFor(homeFeedKey)
-    } catch (err) {
-        console.error('Append failed', err)
-        alert('Impossibile inviare il post')
+    const state = feeds.get(homeFeedKey)
+    if (!state) {
+        console.warn('[post] homeFeedKey non registrata:', homeFeedKey)
+        return
     }
+
+    const { base } = state
+    const post = {
+        text,
+        author: nicknameSpan?.textContent || 'anon',
+        timestamp: Date.now()
+    }
+
+    await base.append(post)
+    postInput.value = ''
 }
 
 // --- Event listeners ---
 
 createBtn.addEventListener('click', createFeed)
-joinForm.addEventListener('submit', joinFeed)
 postForm.addEventListener('submit', onPostSubmit)
 
 addFeedBtn.addEventListener('click', (e) => {
