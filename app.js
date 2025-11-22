@@ -1,7 +1,7 @@
-// Microblog GUI using Pear Runtime, Corestore, Autobase and Hyperswarm.
+// Apples: a Microblogging app using Pear Runtime, Corestore, Autobase and Hyperswarm.
 
 /** @typedef {import('pear-interface')} */
-/* global Pear */
+/* global Pear libraries */
 
 import Hyperswarm from 'hyperswarm'
 import Corestore from 'corestore'
@@ -12,7 +12,7 @@ const { teardown, updates, config } = Pear
 
 console.log('Pear storage path:', config.storage)
 
-// --- DOM ---
+// --- DOM --- //
 
 const setupDiv = document.getElementById('setup')
 const loadingDiv = document.getElementById('loading')
@@ -24,7 +24,7 @@ const currentKeySpan = document.getElementById('current-key')
 
 const createBtn = document.getElementById('create-feed')
 
-const feedNameInput = document.getElementById('feed-name')
+//const feedNameInput = document.getElementById('feed-name')
 const postForm = document.getElementById('post-form')
 const postInput = document.getElementById('post-text')
 
@@ -38,8 +38,9 @@ const nicknameSpan = document.getElementById('nickname')
 const followersSpan = document.getElementById('followers-count')
 const followingSpan = document.getElementById('following-count')
 
-// --- Profilo utente: nickname + stats ---
+// --- Userprofile creation and management: nickname, stats
 
+//function for generating a random Nickname, like used in other social applications
 function generateRandomNickname () {
     const adjectives = ['Silent', 'Happy', 'Cosmic', 'Neon', 'Swift', 'Lucky', 'Clever', 'Velvet', 'Rusty', 'Quantum']
     const nouns = ['Apple', 'Sentry', 'Comet', 'Circuit', 'Panda', 'Falcon', 'Pixel', 'Nova', 'Echo', 'Forest']
@@ -50,6 +51,10 @@ function generateRandomNickname () {
 
     return `${a}-${n}${num}`
 }
+
+//function for managing the profile structure
+// for this example, we're using the local browser's
+// storage for storing pfps and other media but could be uppgraded
 
 function setupProfile () {
     let nick = null
@@ -74,6 +79,7 @@ function setupProfile () {
     } catch (_) {}
 }
 
+// function for managing the avatar uploading
 function setupAvatarUpload () {
     if (!avatarBox || !avatarInput) return
 
@@ -97,7 +103,7 @@ function setupAvatarUpload () {
     })
 }
 
-// following = quanti feed sto seguendo (esclusa la mia home)
+//functions that manage the followers/following count
 function updateFollowingCount () {
     if (!followingSpan) return
     let count = 0
@@ -108,7 +114,6 @@ function updateFollowingCount () {
     followingSpan.textContent = String(count)
 }
 
-// followers = peer connessi al mio feed home in questo momento
 function updateFollowersFromPeers () {
     if (!followersSpan) return
 
@@ -120,8 +125,9 @@ function updateFollowersFromPeers () {
     followersSpan.textContent = String(swarm.connections.size)
 }
 
-// --- Corestore + Swarm ---
+// --- Corestore + Swarm --- //
 
+//Defining corestores and swarm connections
 const store = new Corestore(config.storage)
 await store.ready()
 
@@ -135,10 +141,10 @@ swarm.on('update', () => {
     updateFollowersFromPeers()
 })
 
-// hot reload in dev
-updates(() => Pear.reload())
+// hot reload in dev - commented because not needed
+// updates(() => Pear.reload())
 
-// --- Writer identità ---
+// --- Defining writer's identity in a multi-writer setup ---
 
 let writerCore = null
 
@@ -149,22 +155,24 @@ async function ensureWriterCore () {
 }
 
 // --- Multi-feed state ---
+
 // baseKeyHex -> { base, lastSeq }
 const feeds = new Map()
-let activeFeedKey = null      // cosa sto guardando
-let homeFeedKey = null        // dove scrivo i miei post
+let activeFeedKey = null      //key of the active feed in the view
+let homeFeedKey = null        //key of the home feed
 
-//Initialize nicknames on UI
+//Initialize profile's structure in UI
 setupProfile()
 setupAvatarUpload()
 
-// --- Autobase handlers ---
+// --- Autobase handlers --- //
 
+// Function for getting the autobase's view, essentially opening it
 function open (autostore) {
     return autostore.get({ name: 'view', valueEncoding: 'json' })
 }
 
-// robust apply: gestisce addWriter in vari formati e non lancia mai
+// Function that manages multiple writers in multiple nodes and views
 async function apply (nodes, view, host) {
     for (const { value } of nodes) {
         if (!value) continue
@@ -184,7 +192,7 @@ async function apply (nodes, view, host) {
             if (writerKeyBuf) {
                 await host.addWriter(writerKeyBuf, { indexer: true })
             } else {
-                console.warn('apply: addWriter con formato non riconosciuto:', v)
+                console.warn('apply: addWriter with unknown format:', v)
             }
             continue
         }
@@ -217,7 +225,7 @@ function appendPostToUI (post) {
     postsDiv.scrollTop = postsDiv.scrollHeight
 }
 
-// --- Lettura view per un singolo feed ---
+// --- View reading for a single feed ---
 
 async function displayNewPostsFor (baseKeyHex) {
     const state = feeds.get(baseKeyHex)
@@ -292,14 +300,14 @@ function setActiveFeed (baseKeyHex) {
     updateFollowersFromPeers()
 }
 
-// --- Creazione / join Autobase ---
+// --- Feed's joining structure. Core part of the app. Here we manage to join various peers owned feeds ---
 
 async function initFeed (bootstrapKeyBuffer, { makeHome = false } = {}) {
     await ensureWriterCore()
 
     const bootstrapHex = bootstrapKeyBuffer
         ? b4a.toString(bootstrapKeyBuffer, 'hex')
-        : '(nuovo feed)'
+        : '(new feed)'
     console.log('[initFeed] bootstrap =', bootstrapHex)
 
     const isNew = !bootstrapKeyBuffer
@@ -308,8 +316,8 @@ async function initFeed (bootstrapKeyBuffer, { makeHome = false } = {}) {
     let feedIdHex
 
     if (isNew) {
-        // --- CASO 1: NUOVO FEED PERSONALE (HOME) ---
-        // namespace dedicato per la home, così non collide con altri feed
+        // --- Case 1: Personal Feed ( Home ) ---
+        // dedicated namespace for the home feed ensuring colliding free structure and functioning
         baseStore = store.namespace('home-base')
 
         base = new Autobase(baseStore, null, {
@@ -318,23 +326,23 @@ async function initFeed (bootstrapKeyBuffer, { makeHome = false } = {}) {
             valueEncoding: 'json'
         })
 
-        // 1) ci assicuriamo che l'autobase sia pronto
+        //await that the autobase is ready
         await base.ready()
 
-        // 2) aggiungiamo noi stessi come writer
+        //add ourselves as writers
         const writerKeyHex = b4a.toString(writerCore.key, 'hex')
-        console.log('[initFeed] nuova base HOME, addWriter =', writerKeyHex)
+        console.log('[initFeed] new HOME base, addWriter =', writerKeyHex)
         await base.append({ addWriter: writerKeyHex })
 
-        // 3) swarm sulla discoveryKey (pattern ufficiale)
+        //swarm connection via discoveryKey
         const discovery = swarm.join(base.discoveryKey)
         await discovery.flushed()
 
-        // 4) ID del feed = chiave dell'autobase
+        //autobase key = feed IDs
         feedIdHex = b4a.toString(base.key, 'hex')
     } else {
-        // --- CASO 2: JOIN DI UN FEED ESISTENTE (SOLO LETTURA) ---
-        // namespace dedicato per questo feed, derivato dalla sua chiave
+        // --- Case 2: existing feed join ( read-only ) ---
+        // dedicated namespace for this feed, derived from its key
         const short = b4a.toString(bootstrapKeyBuffer, 'hex').slice(0, 16)
         baseStore = store.namespace('follow-' + short)
 
@@ -344,18 +352,18 @@ async function initFeed (bootstrapKeyBuffer, { makeHome = false } = {}) {
             valueEncoding: 'json'
         })
 
-        // 1) sincronizziamo l'autobase locale con il bootstrap remoto
+        //Synchronization between local and remote autobases
         await base.ready()
 
-        // 2) swarm sulla discoveryKey dell'autobase
+        //swarm connection on autobase's discoveryKey
         const discovery = swarm.join(base.discoveryKey)
         await discovery.flushed()
 
-        // 3) feedId ufficiale = base.key (in pratica uguale al bootstrap)
+        //Official feedID = autobase's key ( equal to bootstrap )
         feedIdHex = b4a.toString(base.key, 'hex')
     }
 
-    // log errori di Autobase (incluso il famoso "bootstrap lock" se mai ricapita)
+    //various error logs, for avoiding bootstrap safe-lock, mismatching key usage or other autobase's errors
     base.on('error', (err) => {
         console.error('[autobase error]', feedIdHex, err)
     })
@@ -364,25 +372,26 @@ async function initFeed (bootstrapKeyBuffer, { makeHome = false } = {}) {
 
     if (!feeds.has(feedIdHex)) {
         feeds.set(feedIdHex, { base, lastSeq: 0 })
-        console.log('[initFeed] feed registrato, feeds =', [...feeds.keys()])
+        console.log('[initFeed] feed is now registered, feeds =', [...feeds.keys()])
         setupBaseListeners(feedIdHex)
         refreshFeedSelect()
         updateFollowingCount()
     } else {
-        console.log('[initFeed] feed già noto, reuse')
+        console.log('[initFeed] known feed, reuse clause activated')
     }
 
     if (makeHome && !homeFeedKey) {
         homeFeedKey = feedIdHex
-        console.log('[initFeed] homeFeedKey impostata =', homeFeedKey)
+        console.log('[initFeed] defined homeFeedKey =', homeFeedKey)
     }
 
     return feedIdHex
 }
 
 
-// --- Handlers high-level ---
+// ---  High-level Handlers ---
 
+//Function for creating the feed and putting it as the "Active" feed from a viewer standpoint
 async function createFeed () {
     setupDiv.classList.add('hidden')
     loadingDiv.classList.remove('hidden')
@@ -393,23 +402,24 @@ async function createFeed () {
         loadingDiv.classList.add('hidden')
         feedDiv.classList.remove('hidden')
 
-        setActiveFeed(baseKeyHex)   // la home è anche il primo feed che guardi
+        setActiveFeed(baseKeyHex)
     } catch (err) {
         console.error(err)
-        alert('Errore nella creazione del feed')
+        alert('There was an error in creating the feed')
         loadingDiv.classList.add('hidden')
         setupDiv.classList.remove('hidden')
     }
 }
 
+// function for joining other feeds
 async function joinAdditionalFeed () {
     const keyStr = addFeedInput.value.trim()
     if (!keyStr) return
 
-    console.log('[joinAdditionalFeed] richiesta join feed key =', keyStr)
+    console.log('[joinAdditionalFeed] join feed key request done =', keyStr)
 
     if (feeds.has(keyStr)) {
-        console.log('[joinAdditionalFeed] feed già noto, seleziono semplicemente')
+        console.log('[joinAdditionalFeed] known feed, we can just select it')
         setActiveFeed(keyStr)
         addFeedInput.value = ''
         return
@@ -419,36 +429,33 @@ async function joinAdditionalFeed () {
         const bootstrapBuffer = b4a.from(keyStr, 'hex')
         const baseKeyHex = await initFeed(bootstrapBuffer, { makeHome: false })
 
-        // a) Se vuoi che cambi subito feed:
+        //If we want to automatically go to the newest joined feed we remove the comment on the following line:
         // setActiveFeed(baseKeyHex)
-
-        // b) Se NON vuoi “passare” automaticamente:
-        //    commenta la riga sopra, resta sulla home e il feed nuovo lo scegli dal menu
-        // setActiveFeed(baseKeyHex)
+        //If now, we leave it as it is so we'll stay on the home feed and the joined feeds will be chosen via menu
 
         addFeedInput.value = ''
     } catch (err) {
         console.error(err)
-        alert('Errore nell\'unione al feed. Chiave non valida o peer non trovato.')
+        alert('Error in feed\'s joining. Peer not found or mismatched key.')
     }
 }
 
 
 
-// post: scriviamo SEMPRE e SOLO sulla nostra HOME
+//function linked to create new posts
 async function onPostSubmit (e) {
     e.preventDefault()
     const text = postInput.value.trim()
     if (!text) return
 
     if (!homeFeedKey) {
-        console.warn('[post] niente homeFeedKey, ignoro')
+        console.warn('[post] no homeFeedKey, I ignore')
         return
     }
 
     const state = feeds.get(homeFeedKey)
     if (!state) {
-        console.warn('[post] homeFeedKey non registrata:', homeFeedKey)
+        console.warn('[post] homeFeedKey not present:', homeFeedKey)
         return
     }
 
