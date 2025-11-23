@@ -1,108 +1,111 @@
-Questa cartella contiene un esempio di applicazione micro‑blog costruita
-utilizzando il Pear Runtime. L’applicazione è simile a un feed di
-micro‑messaggi alla Twitter: ogni peer può pubblicare brevi post e tutte le
-pubblicazioni vengono condivise in rete tramite il protocollo P2P. La logica
-si basa sulla combinazione di alcuni componenti chiave della documentazione
-Pear:
+# Apples – P2P Microblogging on Pear Runtime
 
-Corestore – un “fabbrica” di Hypercore consigliata da Pear per
-gestire collezioni di log append‑only. La guida su come gestire molti
-Hypercore sottolinea che un’unica Corestore per applicazione semplifica
-replicazione e gestione
-docs.pears.com
-.
+Apples is a small peer-to-peer microblogging application (Twitter-style) built on top of the **Pear Runtime**, using **Corestore**, **Autobase**, and **Hyperswarm** to manage distributed feeds without any central server.
 
-Autobase – una struttura multi‑writer che linearizza i messaggi
-provenienti da più writer per produrre una vista coerente nel tempo. La
-documentazione descrive Autobase come un modo per combinare i log dei vari
-autori mantenendo eventual consistency
-docs.pears.com
-. L’app
-definisce una funzione open che crea la vista e una funzione apply che
-applica i nuovi nodi alla vista
-docs.pears.com
-.
+---
 
-Hyperswarm – la libreria di networking P2P che permette ai peer di
-scoprire gli altri tramite una chiave di scoperta. La documentazione
-spiega come unirsi a una rete usando la base.discoveryKey di Autobase e
-replicare l’archivio Corestore su ogni connessione
-docs.pears.com
-.
+## Requirements
 
-Dipendenze
+- OS: Windows / Linux / macOS  
+- **Pear Runtime** installed  
+  See official documentation / download page (section “Get Pear”).
+- Internet connection for running tests between multiple peers.
 
-Per eseguire l’app sono necessari i seguenti pacchetti (oltre al runtime
-Bare/Pear):
+No database or HTTP server needs to be installed manually: Pear manages local storage and replication.
 
-npm install autobase corestore hyperswarm b4a bare-readline bare-tty
+---
 
+## Running the app
 
-Questi moduli vengono usati anche negli esempi ufficiali di Pear per le
-applicazioni di chat
-docs.pears.com
-. Bare è un runtime
-minimalista simile a Node.js; su desktop/terminal viene usato bare-readline
-per leggere dal terminale. Nota: su dispositivi mobili è consigliato
-creare una Bare mobile application con interfaccia grafica e gestire
-l’input tramite componenti UI anziché bare-readline, secondo le linee
-guida di Pear per le app mobili.
+From a terminal / command prompt, go to the project folder:
 
-Avvio di un nuovo feed
+```bash
+cd path/to/Apples
+```
 
-Portarsi nella cartella pear-blog-app ed eseguire pear run --dev ..
+### Normal run
 
-L’app crea una nuova base e stampa una chiave esadecimale. Questa è la
-chiave del writer (la chiave pubblica del tuo feed) generata
-automaticamente; condividila con gli amici per permettere loro di unirsi al tuo
-feed. Nella GUI la chiave compare in alto sotto “Feed key”.
+Launch the app with Pear:
 
-Inizia a digitare messaggi: saranno salvati come JSON con autore,
-testo e timestamp. Ogni volta che un nuovo post viene applicato alla
-vista, l’app lo stampa in console.
+```bash
+pear run .
+```
 
-Interfaccia grafica
+This starts Apples as a normal Pear app (no dev console).
 
-Questa cartella contiene anche un semplice front‑end (index.html e
-app.js) che fornisce una GUI minimalista. Quando esegui pear run --dev .
-in una finestra Pear Desktop, si aprirà automaticamente l’interfaccia
-grafica. Puoi scegliere “Crea nuovo feed” per generare una nuova base o
-inserire una chiave di un feed esistente per unirti. L’interfaccia
-mostra l’elenco dei post, la chiave del feed e il numero di peer
-connessi; sotto è presente un campo testo per pubblicare nuovi post.
+### Development mode (with dev console)
 
-Unirsi a un feed esistente
+To run in development mode and open the dev console:
 
-Se hai ricevuto una chiave da qualcun altro:
+```bash
+pear run -d .
+# or
+pear run --dev .
+```
 
-pear run --dev . <CHIAVE_FEED>
+In this mode you can open the developer tools (console, network, etc.), which is useful for debugging Autobase, replication and UI state.
 
+---
 
-L’app proverà a collegarsi ai peer che annunciano quella chiave di feed e
-replicherà il log. Ogni volta che un post viene pubblicato dal creatore o
-da un altro writer, lo vedrai comparire nella tua console. Puoi a tua volta
-pubblicare nuovi messaggi: saranno linearizzati e condivisi con tutti i
-partecipanti grazie ad Autobase.
+## Quick usage
 
-Adattamento mobile
+### 1. First screen – create your account
 
-La documentazione di Pear evidenzia che il runtime Bare viene usato
-ampiamente per la compatibilità e la modularità. Tuttavia, per rendere
-un’applicazione realmente usabile su smartphone, è consigliabile creare una
-Bare mobile application (guida Making a Bare Mobile Application) che
-utilizzi componenti grafici al posto delle librerie di terminale bare‑tty
-e bare-readline. In particolare bisognerà:
+When the app opens:
 
-Generare un progetto mobile con pear init --type mobile e definire un
-layout HTML/CSS/JS per l’interfaccia del feed.
+1. Click **“Create account”**.
+2. The app creates your personal **home feed**, and shows:
+   - a **profile avatar box** on the left  
+     - click it to choose a local image file;
+   - an auto-generated **nickname** (two words + a number, similar to Reddit);
+   - two counters:
+     - **Subscribers** – peers currently connected to your home feed;
+     - **Subscribed to** – number of other feeds you follow.
 
-Sostituire l’interfaccia di input/visualizzazione di questo esempio con
-componenti HTML (ad esempio un formulario per scrivere un post e un div
-scorrevole per mostrare il feed). La logica di rete, basata su
-Corestore/Autobase/Hyperswarm, resta invariata.
+Your identity (nickname + avatar) is local to your device and not synced over the network.
 
-Assicurarsi che i pacchetti usati siano compatibili con la piattaforma
-mobile (Pear/Bare include un bundler che prepara i moduli per Android/iOS).
+---
 
-Con questi adattamenti il micro‑blog potrà funzionare sia su desktop che
-su smartphone senza necessità di server centrali.
+### 2. Writing posts
+
+In the right column (main feed area):
+
+1. In the *“Feed name”* field you can set a label for the thread (e.g. `main`, `tech`, `personal`).
+2. In the bottom input field type your message.
+3. Press **“Send”**.
+
+All posts are **always appended to your home feed** (your personal Autobase).  
+Other peers who follow your feed will see these posts replicated in their timeline.
+
+---
+
+### 3. Following another feed
+
+To follow someone else’s feed:
+
+1. On another node / machine, the other person opens Apples and clicks **“Create account”**.
+2. That node obtains a **feed key** (hex string) for their home feed.
+3. On your instance of Apples:
+   - copy that feed key;
+   - paste it into the *“Add feed key…”* input;
+   - click **“Join feed”**.
+
+What happens then:
+
+- The external feed is added to the **“Active feeds”** dropdown.
+- Selecting it from the dropdown shows the **remote timeline** (read-only).
+- Your posts are still written only to **your** home feed; the external feed is never overwritten.
+
+This mirrors the “follow” model:
+- your home feed = your profile / timeline,
+- followed feeds = other timelines you can read.
+
+---
+
+## Notes
+
+- Application data (feeds, posts, Autobase metadata) are stored inside Pear’s app storage directory, in a folder dedicated to this app.
+- The **avatar image** and **nickname** are stored in the webview’s `localStorage` under keys like:
+  - `apples.avatar`
+  - `apples.nickname`
+- Avatar and nickname are **not replicated** to other peers: each device can have its own local representation of the same feed.
