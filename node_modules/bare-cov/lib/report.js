@@ -11,7 +11,7 @@ const STATIC_WIDTH = PERCENT_WIDTH * 4 + 6 // 4 percent columns + 5 separators a
 const MIN_NAME_WIDTH = 5
 const MIN_UNCOVERED_WIDTH = 17
 
-function findCommonPath (paths) {
+function findCommonPath(paths) {
   const getCommon = (a, b) => {
     let i = 0
     while (i < a.length && i < b.length && a[i] === b[i]) i++
@@ -20,40 +20,42 @@ function findCommonPath (paths) {
 
   if (!paths || paths.length === 0) return []
 
-  const splitPaths = paths.map(p => p.split(path.sep))
+  const splitPaths = paths.map((p) => p.split(path.sep))
   return splitPaths.slice(1).reduce((acc, path) => {
     return getCommon(acc, path)
   }, splitPaths[0])
 }
 
-function truncate (str, width, right = false, delimiter = null) {
+function truncate(str, width, right = false, delimiter = null) {
   if (str.length <= width) return str
   let truncateAt = right ? str.length - width + 1 : width - 1
   if (delimiter) {
-    const nextSeparatorIndex = right ? str.indexOf(delimiter, truncateAt) : str.lastIndexOf(delimiter, truncateAt - 1)
+    const nextSeparatorIndex = right
+      ? str.indexOf(delimiter, truncateAt)
+      : str.lastIndexOf(delimiter, truncateAt - 1)
     if (nextSeparatorIndex === -1) return '…'
     truncateAt = right ? nextSeparatorIndex : nextSeparatorIndex + 1
   }
   return right ? '…' + str.slice(truncateAt) : str.slice(0, truncateAt) + '…'
 }
 
-function toPercent (covered, total) {
+function toPercent(covered, total) {
   if (total === 0 || covered === total) return '100'
   if (covered === 0) return '0'
-  return (covered / total * 100).toFixed(2)
+  return ((covered / total) * 100).toFixed(2)
 }
 
-function ntimes (n, str) {
+function ntimes(n, str) {
   return Array(n).fill(str).join('')
 }
 
-function pad (str, width, right) {
+function pad(str, width, right) {
   if (str.length >= width) return str
   const fill = ntimes(width - str.length, ' ')
   return right ? str + fill : fill + str
 }
 
-function rowSeparator (nameWidth, uncoveredWidth) {
+function rowSeparator(nameWidth, uncoveredWidth) {
   const name = ntimes(nameWidth, '-')
   const uncovered = ntimes(uncoveredWidth, '-')
   const percent = ntimes(PERCENT_WIDTH, '-')
@@ -61,14 +63,14 @@ function rowSeparator (nameWidth, uncoveredWidth) {
   return [name, percent, branch, percent, percent, uncovered].join('|')
 }
 
-function printHeader (nameWidth, uncoveredWidth) {
+function printHeader(nameWidth, uncoveredWidth) {
   const name = pad('File', nameWidth, true)
   const unc = pad(truncate('Uncovered Line #s', uncoveredWidth - 1), uncoveredWidth - 1, true)
 
   console.log(`${name}| % Stmts | % Branch | % Funcs | % Lines | ${unc}`)
 }
 
-function printRow (fileSummary, fileName, nameWidth, uncoveredWidth) {
+function printRow(fileSummary, fileName, nameWidth, uncoveredWidth) {
   const statements = toPercent(fileSummary.covered.statements, fileSummary.total.statements)
   const branches = toPercent(fileSummary.covered.branches, fileSummary.total.branches)
   const functions = toPercent(fileSummary.covered.functions, fileSummary.total.functions)
@@ -78,17 +80,19 @@ function printRow (fileSummary, fileName, nameWidth, uncoveredWidth) {
     ? fileSummary.uncovered.normalizedLines
     : ' '
 
-  console.log([
-    pad(` ${truncate(fileName, nameWidth - 2)} `, nameWidth, true),
-    pad(` ${statements} `, PERCENT_WIDTH),
-    pad(` ${branches} `, PERCENT_WIDTH + 1),
-    pad(` ${functions} `, PERCENT_WIDTH),
-    pad(` ${lines} `, PERCENT_WIDTH),
-    pad(` ${truncate(uncoveredLines, uncoveredWidth - 2, true, ',')} `, uncoveredWidth, true)
-  ].join('|'))
+  console.log(
+    [
+      pad(` ${truncate(fileName, nameWidth - 2)} `, nameWidth, true),
+      pad(` ${statements} `, PERCENT_WIDTH),
+      pad(` ${branches} `, PERCENT_WIDTH + 1),
+      pad(` ${functions} `, PERCENT_WIDTH),
+      pad(` ${lines} `, PERCENT_WIDTH),
+      pad(` ${truncate(uncoveredLines, uncoveredWidth - 2, true, ',')} `, uncoveredWidth, true)
+    ].join('|')
+  )
 }
 
-function deriveWidths (groupedSummaries) {
+function deriveWidths(groupedSummaries) {
   let nameWidth = MIN_NAME_WIDTH
   let uncoveredWidth = MIN_UNCOVERED_WIDTH
 
@@ -98,7 +102,8 @@ function deriveWidths (groupedSummaries) {
     for (const [fileName, fileSummary] of Object.entries(dirSummary.files)) {
       const normalizedLines = fileSummary.uncovered?.normalizedLines
       if (fileName.length + FILE_INDENT > nameWidth) nameWidth = fileName.length + FILE_INDENT
-      if (normalizedLines && normalizedLines.length > uncoveredWidth) uncoveredWidth = normalizedLines.length
+      if (normalizedLines && normalizedLines.length > uncoveredWidth)
+        uncoveredWidth = normalizedLines.length
     }
   }
 
@@ -115,10 +120,10 @@ function deriveWidths (groupedSummaries) {
   return { nameWidth, uncoveredWidth }
 }
 
-function normalizeUncoveredLines (uncoveredLines) {
+function normalizeUncoveredLines(uncoveredLines) {
   if (!uncoveredLines || uncoveredLines.length === 0) return ''
 
-  const lines = uncoveredLines.map(line => Number(line)).sort((a, b) => a - b)
+  const lines = uncoveredLines.map((line) => Number(line)).sort((a, b) => a - b)
   const ranges = []
   let start = lines[0]
   let end = start
@@ -138,7 +143,7 @@ function normalizeUncoveredLines (uncoveredLines) {
   return ranges.join(',')
 }
 
-function addCoverages (a, b) {
+function addCoverages(a, b) {
   a.covered.statements += b.covered.statements
   a.covered.branches += b.covered.branches
   a.covered.functions += b.covered.functions
@@ -150,7 +155,7 @@ function addCoverages (a, b) {
   a.total.lines += b.total.lines
 }
 
-function groupByDirectory (fileSummaries) {
+function groupByDirectory(fileSummaries) {
   const commonPath = findCommonPath(Object.keys(fileSummaries)).join(path.sep)
   const commonDir = path.basename(commonPath)
 
@@ -178,7 +183,7 @@ function groupByDirectory (fileSummaries) {
   return directories
 }
 
-function printBody (grouped, nameWidth, uncoveredWidth) {
+function printBody(grouped, nameWidth, uncoveredWidth) {
   for (const [dirName, dirSummary] of Object.entries(grouped)) {
     printRow(dirSummary.coverage, `${ntimes(DIR_INDENT, ' ')}${dirName}`, nameWidth, uncoveredWidth)
     for (const [fileName, fileSummary] of Object.entries(dirSummary.files)) {
@@ -187,7 +192,7 @@ function printBody (grouped, nameWidth, uncoveredWidth) {
   }
 }
 
-module.exports = function reportCoverage ({ summary, fileSummaries }) {
+module.exports = function reportCoverage({ summary, fileSummaries }) {
   Object.values(fileSummaries).forEach((fileSummary) => {
     fileSummary.uncovered.normalizedLines = normalizeUncoveredLines(fileSummary.uncovered.lines)
   })

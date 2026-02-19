@@ -19,7 +19,7 @@ const DEFAULT_EXCLUDES = [
 
 const DEFAULT_EXTENSIONS = ['.js', '.cjs', '.mjs', '.ts', '.tsx', '.jsx']
 
-function isOutsideDir (dir, filename) {
+function isOutsideDir(dir, filename) {
   return isWindows
     ? !path.resolve(dir, filename).startsWith(path.resolve(dir) + path.sep)
     : /^\.\./.test(path.relative(dir, filename))
@@ -27,7 +27,7 @@ function isOutsideDir (dir, filename) {
 
 // Based off https://github.com/istanbuljs/test-exclude/blob/master/index.js with glob-related code removed and minimatch replaced with picomatch
 class TestExclude {
-  constructor (opts = {}) {
+  constructor(opts = {}) {
     this.cwd = opts.cwd ?? process.cwd()
     this.include = opts.include ?? []
     this.exclude = opts.exclude ?? DEFAULT_EXCLUDES
@@ -41,10 +41,12 @@ class TestExclude {
     if (typeof this.extension === 'string') this.extension = [this.extension]
     else if (this.extension.length === 0) this.extension = false
 
-    if (this.include && this.include.length > 0) this.include = prepGlobPatterns([].concat(this.include))
+    if (this.include && this.include.length > 0)
+      this.include = prepGlobPatterns([].concat(this.include))
     else this.include = false
 
-    if (this.excludeNodeModules && !this.exclude.includes('**/node_modules/**')) this.exclude = this.exclude.concat('**/node_modules/**')
+    if (this.excludeNodeModules && !this.exclude.includes('**/node_modules/**'))
+      this.exclude = this.exclude.concat('**/node_modules/**')
 
     this.exclude = prepGlobPatterns([].concat(this.exclude))
 
@@ -56,10 +58,10 @@ class TestExclude {
    * of rules, which is applied after excludes and we
    * move excluded include rules into this.excludes.
    */
-  handleNegation () {
-    const noNeg = e => e.charAt(0) !== '!'
-    const onlyNeg = e => e.charAt(0) === '!'
-    const stripNeg = e => e.slice(1)
+  handleNegation() {
+    const noNeg = (e) => e.charAt(0) !== '!'
+    const onlyNeg = (e) => e.charAt(0) === '!'
+    const stripNeg = (e) => e.slice(1)
 
     if (Array.isArray(this.include)) {
       const includeNegated = this.include.filter(onlyNeg).map(stripNeg)
@@ -72,8 +74,8 @@ class TestExclude {
     this.excludeNegated = prepGlobPatterns(this.excludeNegated)
   }
 
-  shouldInstrument (filename, relFile) {
-    if (this.extension && !this.extension.some(ext => filename.endsWith(ext))) return false
+  shouldInstrument(filename, relFile) {
+    if (this.extension && !this.extension.some((ext) => filename.endsWith(ext))) return false
 
     let pathToCheck = filename
 
@@ -87,12 +89,15 @@ class TestExclude {
     }
 
     const dot = { dot: true, windows: isWindows }
-    const matches = pattern => picomatch.isMatch(pathToCheck, pattern, dot)
-    return ((!this.include || this.include.some(matches)) && (!this.exclude.some(matches) || this.excludeNegated.some(matches)))
+    const matches = (pattern) => picomatch.isMatch(pathToCheck, pattern, dot)
+    return (
+      (!this.include || this.include.some(matches)) &&
+      (!this.exclude.some(matches) || this.excludeNegated.some(matches))
+    )
   }
 }
 
-function prepGlobPatterns (patterns) {
+function prepGlobPatterns(patterns) {
   return patterns.reduce((result, pattern) => {
     // Allow gitignore style of directory exclusion
     if (!/\/\*\*$/.test(pattern)) result = result.concat(pattern.replace(/\/$/, '') + '/**')

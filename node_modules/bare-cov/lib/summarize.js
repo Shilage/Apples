@@ -1,4 +1,4 @@
-function summarizeFileCoverage (file) {
+function summarizeFileCoverage(file) {
   const summary = {
     total: { statements: 0, branches: 0, functions: 0, lines: 0 },
     covered: { statements: 0, branches: 0, functions: 0, lines: 0 },
@@ -8,20 +8,20 @@ function summarizeFileCoverage (file) {
   if (file.s) {
     const statements = Object.values(file.s)
     summary.total.statements = statements.length
-    summary.covered.statements = statements.filter(hitCount => hitCount > 0).length
+    summary.covered.statements = statements.filter((hitCount) => hitCount > 0).length
   }
 
   if (file.b) {
     for (const branch of Object.values(file.b)) {
       summary.total.branches += branch.length
-      summary.covered.branches += branch.filter(hitCount => hitCount > 0).length
+      summary.covered.branches += branch.filter((hitCount) => hitCount > 0).length
     }
   }
 
   if (file.f) {
     const functions = Object.values(file.f)
     summary.total.functions = functions.length
-    summary.covered.functions = functions.filter(hitCount => hitCount > 0).length
+    summary.covered.functions = functions.filter((hitCount) => hitCount > 0).length
   }
 
   let lineCoverage = file.l
@@ -47,7 +47,7 @@ function summarizeFileCoverage (file) {
   return summary
 }
 
-module.exports = function summarizeCoverage (coverageData) {
+module.exports = function summarizeCoverage(coverageData) {
   const summary = {
     total: { statements: 0, branches: 0, functions: 0, lines: 0 },
     covered: { statements: 0, branches: 0, functions: 0, lines: 0 }
@@ -56,7 +56,7 @@ module.exports = function summarizeCoverage (coverageData) {
   const fileSummaries = {}
 
   for (const [filename, file] of Object.entries(coverageData)) {
-    const fileSummary = fileSummaries[filename] = summarizeFileCoverage(file)
+    const fileSummary = (fileSummaries[filename] = summarizeFileCoverage(file))
 
     summary.total.statements += fileSummary.total.statements
     summary.covered.statements += fileSummary.covered.statements

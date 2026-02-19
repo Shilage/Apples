@@ -1,13 +1,15 @@
 {
   "name": "pira-app",
-  "main": "index.html",
   "pear": {
     "name": "pira-app",
     "type": "desktop",
+    "pre": "pear-electron/pre",
     "gui": {
       "backgroundColor": "#1F2430",
       "height": "540",
-      "width": "720"
+      "width": "720",
+      "userAgent": "custom user agent",
+      "closesHides": true
     }
   },
   "type": "module",
@@ -26,6 +28,8 @@
     "bare-readline": "^1.2.0",
     "bare-tty": "^5.0.3",
     "corestore": "^7.6.1",
-    "hyperswarm": "^4.14.2"
+    "hyperswarm": "^4.14.2",
+    "pear-bridge": "^1.2.5",
+    "pear-electron": "^1.7.28"
   }
 }
