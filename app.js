@@ -375,16 +375,16 @@ async function initFeed (bootstrapKeyBuffer, { makeHome = false } = {}) {
         console.log('[initFeed] feed is now registered, feeds =', [...feeds.keys()])
         setupBaseListeners(feedIdHex)
         refreshFeedSelect()
-        updateFollowingCount()
+        //updateFollowingCount()
     } else {
         console.log('[initFeed] known feed, reuse clause activated')
     }
 
-    if (makeHome && !homeFeedKey) {
+    if (makeHome && !   homeFeedKey) {
         homeFeedKey = feedIdHex
         console.log('[initFeed] defined homeFeedKey =', homeFeedKey)
     }
-
+    updateFollowingCount()
     return feedIdHex
 }
 
@@ -460,14 +460,19 @@ async function onPostSubmit (e) {
     }
 
     const { base } = state
+    const feedName = document.getElementById('feed-name')?.value.trim() || ''
     const post = {
         text,
         author: nicknameSpan?.textContent || 'anon',
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        feed: feedName || null
     }
 
     await base.append(post)
     postInput.value = ''
+    if (document.getElementById('feed-name')) {
+        document.getElementById('feed-name').value = ''
+    }
 }
 
 // --- Event listeners ---
