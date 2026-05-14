@@ -6,8 +6,8 @@
 
 import b4a from 'b4a'
 import { setupProfile, setupAvatarUpload, getNickname, updateFollowingCount, updateFollowersFromPeers } from './profile.js'
-import { initSwarmAndStore, getSwarm, initFeed, setActiveFeed, unfollowFeed, submitPost, refreshFeedSelect, feeds, homeFeedKey as _hfk } from './feed.js'
-import { initDiscovery, renderDiscoveryPanel } from './discovery.js'
+import { initSwarmAndStore, getSwarm, initFeed, setActiveFeed, unfollowFeed, submitPost, refreshFeedSelect, feeds, homeFeedKey as _hfk, restoreFollowedFeeds } from './feed.js'
+import { initDiscovery, renderDiscoveryPanel, setDiscoveryState } from './discovery.js'
 
 const { teardown, config } = Pear
 
@@ -43,6 +43,7 @@ await initSwarmAndStore({
     },
     onFeedsUpdate: () => {
         updateFollowingCount(feeds, _currentHomeFeedKey)
+        setDiscoveryState(feeds, _currentHomeFeedKey)
         renderDiscoveryPanel(feeds, _currentHomeFeedKey)
     }
 })
@@ -58,6 +59,9 @@ initDiscovery({
     teardown,
     getNickname,
     getHomeFeedKey: () => _currentHomeFeedKey,
+    onPeersUpdate: () => {
+        updateFollowersFromPeers(getSwarm(), _currentHomeFeedKey, getCurrentActiveFeedKey())
+    },
     onJoin: async ({ action, feedKey }) => {
         if (action === 'follow') {
             addFeedInput.value = feedKey
@@ -80,9 +84,14 @@ async function createFeed () {
         _currentHomeFeedKey = baseKeyHex
         _currentActiveFeedKey = baseKeyHex
 
+        updateFollowingCount(feeds, _currentHomeFeedKey)
+        setDiscoveryState(feeds, _currentHomeFeedKey)
+        renderDiscoveryPanel(feeds, _currentHomeFeedKey)
+
         loadingDiv.classList.add('hidden')
         feedDiv.classList.remove('hidden')
         setActiveFeed(baseKeyHex)
+        await restoreFollowedFeeds()
     } catch (err) {
         console.error(err)
         alert('There was an error in creating the feed')

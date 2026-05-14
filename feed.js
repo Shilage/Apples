@@ -36,10 +36,15 @@ export async function initSwarmAndStore ({ config, teardown, onPeersUpdate, onFe
     swarm = new Hyperswarm()
     teardown(() => swarm.destroy())
 
-    swarm.on('connection', (conn) => store.replicate(conn))
     swarm.on('update', () => {
+        console.log('[SWARM] update event - connections:', swarm.connections.size)
         peersCountSpan.textContent = swarm.connections.size
         _onPeersUpdate?.()
+    })
+
+    swarm.on('connection', (conn) => {
+        console.log('[SWARM] new connection - total now:', swarm.connections.size + 1)
+        store.replicate(conn)
     })
 
     return swarm
@@ -81,6 +86,37 @@ async function apply (nodes, view, host) {
         }
 
         await view.append(value)
+    }
+}
+// --- Followed feed persistence ---
+
+function saveFollowedFeeds () {
+    try {
+        const keys = []
+        for (const key of feeds.keys()) {
+            if (key === homeFeedKey) continue
+            keys.push(key)
+        }
+        localStorage.setItem('apples.followedFeeds', JSON.stringify(keys))
+    } catch (_) {}
+}
+
+function loadFollowedFeeds () {
+    try {
+        const raw = localStorage.getItem('apples.followedFeeds')
+        return raw ? JSON.parse(raw) : []
+    } catch (_) { return [] }
+}
+
+export async function restoreFollowedFeeds () {
+    const keys = loadFollowedFeeds()
+    for (const keyHex of keys) {
+        try {
+            const buf = b4a.from(keyHex, 'hex')
+            await initFeed(buf, { makeHome: false })
+        } catch (err) {
+            console.warn('[restore] failed to restore feed:', keyHex, err)
+        }
     }
 }
 
@@ -212,6 +248,7 @@ export async function initFeed (bootstrapKeyBuffer, { makeHome = false } = {}) {
     if (makeHome && !homeFeedKey) homeFeedKey = feedIdHex
 
     _onFeedsUpdate?.()
+    if (!makeHome) saveFollowedFeeds()
     return feedIdHex
 }
 
@@ -233,6 +270,7 @@ export async function unfollowFeed (feedKeyHex) {
     }
 
     feeds.delete(feedKeyHex)
+    saveFollowedFeeds()
     if (activeFeedKey === feedKeyHex) setActiveFeed(homeFeedKey)
 
     refreshFeedSelect()

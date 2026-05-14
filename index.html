@@ -654,6 +654,8 @@
 
         list.innerHTML = ''
         for (const opt of select.options) {
+            if (opt.textContent.startsWith('HOME')) continue
+
             const item = document.createElement('div')
             item.className = 'feed-list-item' + (opt.value === select.value ? ' active' : '')
             item.dataset.key = opt.value
@@ -667,14 +669,6 @@
             label.textContent = opt.value.slice(0, 14) + '…'
 
             item.appendChild(bullet)
-
-            if (opt.textContent.startsWith('HOME')) {
-                const badge = document.createElement('span')
-                badge.className = 'home-badge'
-                badge.textContent = 'home'
-                item.appendChild(badge)
-            }
-
             item.appendChild(label)
 
             item.addEventListener('click', () => {
@@ -683,6 +677,16 @@
             })
 
             list.appendChild(item)
+        }
+
+        // Message when user doesn't follow anyone
+        if (list.children.length === 0) {
+            const empty = document.createElement('div')
+            empty.style.fontSize = '10px'
+            empty.style.color = 'var(--muted)'
+            empty.style.padding = '4px 7px'
+            empty.textContent = 'Non segui ancora nessuno'
+            list.appendChild(empty)
         }
     }
 

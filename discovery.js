@@ -14,7 +14,7 @@ let _getNickname = () => 'anon'
 let _getHomeFeedKey = () => null
 let _onJoin = null
 
-export function initDiscovery ({ teardown, getNickname, getHomeFeedKey, onJoin }) {
+export function initDiscovery ({ teardown, getNickname, getHomeFeedKey, onJoin, onPeersUpdate }) {
     _getNickname = getNickname
     _getHomeFeedKey = getHomeFeedKey
     _onJoin = onJoin
@@ -25,28 +25,33 @@ export function initDiscovery ({ teardown, getNickname, getHomeFeedKey, onJoin }
 
     discoverySwarm.on('connection', (conn) => {
         const remoteKeyHex = b4a.toString(conn.remotePublicKey, 'hex')
+        console.log('[DISCOVERY] connection from:', remoteKeyHex.slice(0, 16) + '...')
 
         if (!discoveredPeers.has(remoteKeyHex)) {
             discoveredPeers.set(remoteKeyHex, { nick: null, feedKey: null, lastSeen: Date.now() })
         }
 
         announce(conn)
+        onPeersUpdate?.()
 
         conn.on('data', (data) => {
             try {
                 const msg = JSON.parse(b4a.toString(data))
                 if (msg.type === 'announce') {
+                    console.log('[DISCOVERY] announce received from:', msg.nick, 'feed:', msg.feedKey?.slice(0, 16) + '...')
                     discoveredPeers.set(remoteKeyHex, {
                         nick: msg.nick,
                         feedKey: msg.feedKey,
                         lastSeen: Date.now()
                     })
                     renderDiscoveryPanel()
+                    onPeersUpdate?.()
                 }
             } catch (_) {}
         })
 
         conn.on('close', () => {
+            console.log('[DISCOVERY] connection closed:', remoteKeyHex.slice(0, 16) + '...')
             const peer = discoveredPeers.get(remoteKeyHex)
             if (peer) peer.lastSeen = Date.now() - 25_000
             renderDiscoveryPanel()
@@ -71,14 +76,34 @@ function announce (conn) {
     conn.write(b4a.from(msg))
 }
 
-export function renderDiscoveryPanel (feeds = new Map(), homeFeedKey = null) {
+let _feeds = new Map()
+let _homeFeedKey = null
+
+export function setDiscoveryState (feeds, homeFeedKey) {
+    _feeds = feeds
+    _homeFeedKey = homeFeedKey
+}
+
+export function renderDiscoveryPanel (feeds = _feeds, homeFeedKey = _homeFeedKey) {
     const panel = document.getElementById('discovery-list')
     if (!panel) return
 
     panel.innerHTML = ''
     const now = Date.now()
 
+    // Deduplicazione per feedKey: teniamo solo l'entry più recente per ogni feed
+    const seenFeedKeys = new Map()
     for (const [, info] of discoveredPeers) {
+        if (!info.feedKey) continue
+        const existing = seenFeedKeys.get(info.feedKey)
+        if (!existing || info.lastSeen > existing.lastSeen) {
+            seenFeedKeys.set(info.feedKey, info)
+        }
+    }
+
+    const toRender = [...seenFeedKeys.values()]
+
+    for (const info of toRender) {
         const isOnline = (now - info.lastSeen) < 30_000
         const isFollowing = info.feedKey && feeds.has(info.feedKey)
 
@@ -105,7 +130,18 @@ export function renderDiscoveryPanel (feeds = new Map(), homeFeedKey = null) {
             btn.disabled = true
         } else if (info.feedKey) {
             btn.textContent = '+ Segui'
-            btn.addEventListener('click', () => _onJoin?.({ action: 'follow', feedKey: info.feedKey }))
+
+            const onFollow = async () => {
+                btn.textContent = '✕ Unfollow'
+                btn.style.opacity = '0.7'
+                btn.removeEventListener('click', onFollow)
+                btn.addEventListener('click', () => {
+                    _onJoin?.({ action: 'unfollow', feedKey: info.feedKey })
+                })
+                await _onJoin?.({ action: 'follow', feedKey: info.feedKey })
+            }
+
+            btn.addEventListener('click', onFollow)
         } else {
             btn.textContent = 'no feed'
             btn.disabled = true
@@ -117,7 +153,7 @@ export function renderDiscoveryPanel (feeds = new Map(), homeFeedKey = null) {
         panel.appendChild(row)
     }
 
-    if (discoveredPeers.size === 0) {
+    if (toRender.length === 0) {
         panel.innerHTML = '<div class="peer-empty">Nessun peer rilevato…</div>'
     }
 }
