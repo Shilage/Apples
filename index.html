@@ -19,6 +19,17 @@
             --online:       #4ade80;
             --seen:         #f59e0b;
         }
+        :root.light {
+            --bg: #f0fdf4;
+            --bg-elevated: #dcfce7;
+            --accent: #166534;
+            --accent-soft: rgba(22, 101, 52, 0.12);
+            --border: #86efac;
+            --border-accent: #166534;
+            --text: #052e16;
+            --muted: #15803d;
+        }
+
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -561,7 +572,9 @@
 
 <div id="titlebar">
     <pear-ctrl></pear-ctrl>
-    <span id="titlebar-label">🍎 <span>Apples</span> · P2P microblog</span>
+    <span style="margin-left: 1rem;">Apples • P2P microblog</span>
+    <button id="theme-toggle" style="-webkit-app-region: no-drag; margin-left: auto; margin-right: 0.5rem; border: none;
+    background: transparent; color: var(--accent); cursor: pointer; font-size: 1rem; padding: 0 0.5rem;">☀️</button>
 </div>
 
 <!-- Setup -->
@@ -746,6 +759,25 @@
     } else {
         startObserving()
     }
+    (function () {
+        const btn = document.getElementById('theme-toggle')
+        if (!btn) return
+
+        // Ripristina preferenza salvata
+        const saved = localStorage.getItem('apples.theme')
+        if (saved === 'light') {
+            document.documentElement.classList.add('light')
+            btn.textContent = '🌙'
+        }
+
+        btn.addEventListener('click', () => {
+            const isLight = document.documentElement.classList.toggle('light')
+            btn.textContent = isLight ? '🌙' : '☀️'
+            try {
+                localStorage.setItem('apples.theme', isLight ? 'light' : 'dark')
+            } catch (_) {}
+        })
+    })()
 })()
 </script>
 
