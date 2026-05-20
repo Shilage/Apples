@@ -66,19 +66,6 @@ export function updateFollowingCount (feeds, homeFeedKey) {
     followingSpan.textContent = String(count)
 }
 
-export function updateFollowersFromPeers (swarm, homeFeedKey, activeFeedKey) {
-    if (!followersSpan || !swarm) {
-        console.log('[FOLLOWERS] skip:', { hasSpan: !!followersSpan, hasSwarm: !!swarm })
-        return
-    }
-
-    const connCount = swarm.connections.size
-    console.log('[FOLLOWERS] update:', {
-        connections: connCount,
-        homeFeedKey: homeFeedKey ? homeFeedKey.slice(0, 16) + '...' : null,
-        activeFeedKey: activeFeedKey ? activeFeedKey.slice(0, 16) + '...' : null,
-        stackHint: new Error().stack.split('\n')[2]?.trim()
-    })
-
-    followersSpan.textContent = String(connCount)
+export function updateFollowersCount (count) {
+    if (followersSpan) followersSpan.textContent = String(count)
 }

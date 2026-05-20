@@ -43,8 +43,13 @@ export async function initSwarmAndStore ({ config, teardown, onPeersUpdate, onFe
     })
 
     swarm.on('connection', (conn) => {
-        console.log('[SWARM] new connection - total now:', swarm.connections.size + 1)
+        console.log('[SWARM] new connection - total:', swarm.connections.size)
         store.replicate(conn)
+        conn.on('close', () => {
+            peersCountSpan.textContent = swarm.connections.size
+            _onPeersUpdate?.()
+        })
+        conn.on('error', () => {})
     })
 
     return swarm
@@ -239,13 +244,17 @@ export async function initFeed (bootstrapKeyBuffer, { makeHome = false } = {}) {
 
     base.on('error', (err) => console.error('[autobase error]', feedIdHex, err))
 
-    if (!feeds.has(feedIdHex)) {
+    const isNewFeed = !feeds.has(feedIdHex)
+    if (isNewFeed) {
         feeds.set(feedIdHex, { base, lastSeq: 0 })
         setupBaseListeners(feedIdHex)
-        refreshFeedSelect()
     }
 
-    if (makeHome && !homeFeedKey) homeFeedKey = feedIdHex
+    if (makeHome && !homeFeedKey) {
+        homeFeedKey = feedIdHex
+    }
+
+    if (isNewFeed) refreshFeedSelect()
 
     _onFeedsUpdate?.()
     if (!makeHome) saveFollowedFeeds()
@@ -275,6 +284,7 @@ export async function unfollowFeed (feedKeyHex) {
 
     refreshFeedSelect()
     _onFeedsUpdate?.()
+    _onPeersUpdate?.()
 }
 
 // --- Post submit ---

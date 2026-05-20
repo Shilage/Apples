@@ -1,7 +1,7 @@
 {
-  "name": "pira-app",
+  "name": "apples",
   "pear": {
-    "name": "pira-app",
+    "name": "apples",
     "type": "desktop",
     "pre": "pear-electron/pre",
     "gui": {

@@ -5,9 +5,9 @@
 /* global Pear */
 
 import b4a from 'b4a'
-import { setupProfile, setupAvatarUpload, getNickname, updateFollowingCount, updateFollowersFromPeers } from './profile.js'
-import { initSwarmAndStore, getSwarm, initFeed, setActiveFeed, unfollowFeed, submitPost, refreshFeedSelect, feeds, homeFeedKey as _hfk, restoreFollowedFeeds } from './feed.js'
-import { initDiscovery, renderDiscoveryPanel, setDiscoveryState } from './discovery.js'
+import { setupProfile, setupAvatarUpload, getNickname, updateFollowingCount, updateFollowersCount } from './profile.js'
+import { initSwarmAndStore, initFeed, setActiveFeed, unfollowFeed, submitPost, refreshFeedSelect, feeds, homeFeedKey as _hfk, restoreFollowedFeeds } from './feed.js'
+import { initDiscovery, renderDiscoveryPanel, setDiscoveryState, countFollowers } from './discovery.js'
 
 const { teardown, config } = Pear
 
@@ -39,10 +39,11 @@ await initSwarmAndStore({
     config,
     teardown,
     onPeersUpdate: () => {
-        updateFollowersFromPeers(getSwarm(), _currentHomeFeedKey, getCurrentActiveFeedKey())
+        updateFollowersCount(countFollowers(_currentHomeFeedKey))
     },
     onFeedsUpdate: () => {
         updateFollowingCount(feeds, _currentHomeFeedKey)
+        updateFollowersCount(countFollowers(_currentHomeFeedKey))
         setDiscoveryState(feeds, _currentHomeFeedKey)
         renderDiscoveryPanel(feeds, _currentHomeFeedKey)
     }
@@ -60,7 +61,7 @@ initDiscovery({
     getNickname,
     getHomeFeedKey: () => _currentHomeFeedKey,
     onPeersUpdate: () => {
-        updateFollowersFromPeers(getSwarm(), _currentHomeFeedKey, getCurrentActiveFeedKey())
+        updateFollowersCount(countFollowers(_currentHomeFeedKey))
     },
     onJoin: async ({ action, feedKey }) => {
         if (action === 'follow') {
@@ -68,6 +69,7 @@ initDiscovery({
             await joinAdditionalFeed()
         } else if (action === 'unfollow') {
             await unfollowFeed(feedKey)
+            updateFollowersCount(countFollowers(_currentHomeFeedKey))
             renderDiscoveryPanel(feeds, _currentHomeFeedKey)
         }
     }
