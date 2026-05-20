@@ -7,14 +7,11 @@ const DISCOVERY_TOPIC = b4a.from(
     'apples-p2p-microblog-discovery-v1'.padEnd(32, '0').slice(0, 32)
 )
 
-// Tempo (ms) dopo la disconnessione oltre il quale il peer sparisce dalla lista
-const STALE_TIMEOUT = 2 * 60_000   // 2 minuti
 
-// remoteKeyHex -> { nick, feedKey, following, lastSeen, disconnectedAt?, gossip? }
+const STALE_TIMEOUT = 2 * 60_000
+
 export const discoveredPeers = new Map()
 
-// feedKey -> { feedKey, nick } — persiste anche quando il peer è offline
-// aggiornato solo su follow/unfollow esplicito, non sulla disconnessione
 const persistentFollowers = new Map()
 
 function _persistKey (homeFeedKey) {
@@ -67,7 +64,6 @@ export function initDiscovery ({ teardown, getNickname, getHomeFeedKey, onJoin, 
                 if (msg.type === 'announce') {
                     console.log('[DISCOVERY] announce received from:', msg.nick, 'feed:', msg.feedKey?.slice(0, 16) + '...')
 
-                    // Connessione diretta: sovrascrive eventuale entry gossip per lo stesso feedKey
                     const gossipKey = 'gossip:' + msg.feedKey
                     if (discoveredPeers.has(gossipKey)) discoveredPeers.delete(gossipKey)
 
@@ -78,7 +74,6 @@ export function initDiscovery ({ teardown, getNickname, getHomeFeedKey, onJoin, 
                         lastSeen:  Date.now()
                     })
 
-                    // Aggiorna persistentFollowers: cambia solo su follow/unfollow esplicito
                     const myKey = _getHomeFeedKey()
                     if (myKey && msg.feedKey) {
                         const theyFollowMe = Array.isArray(msg.following) && msg.following.includes(myKey)
@@ -90,13 +85,10 @@ export function initDiscovery ({ teardown, getNickname, getHomeFeedKey, onJoin, 
                         savePersistentFollowers(myKey)
                     }
 
-                    // Gossip: aggiungi i peer noti al nostro interlocutore ma non ancora a noi
                     if (Array.isArray(msg.knownPeers)) {
                         for (const p of msg.knownPeers) {
                             if (!p.feedKey || !p.nick) continue
-                            // Non aggiungere noi stessi alla lista peer
                             if (p.feedKey === _getHomeFeedKey()) continue
-                            // Saltiamo se abbiamo già una connessione diretta per questo feedKey
                             const alreadyDirect = [...discoveredPeers.values()]
                                 .some(e => e.feedKey === p.feedKey && !e.gossip)
                             if (alreadyDirect) continue
@@ -128,7 +120,7 @@ export function initDiscovery ({ teardown, getNickname, getHomeFeedKey, onJoin, 
         conn.on('error', () => {})
     })
 
-    // Re-announce and refresh panel every 10s
+
     setInterval(() => {
         for (const conn of discoverySwarm.connections) announce(conn)
         renderDiscoveryPanel()
@@ -143,8 +135,7 @@ function announce (conn) {
     if (!feedKey) return
     const following = [..._feeds.keys()].filter(k => k !== feedKey)
 
-    // Gossip: condividi i peer che conosci direttamente,
-    // così chi riceve questo announce può scoprire peer raggiungibili solo transitivamente
+
     const knownPeers = []
     for (const [, info] of discoveredPeers) {
         if (info.feedKey && info.nick && !info.disconnectedAt && !info.gossip) {
@@ -159,8 +150,7 @@ function announce (conn) {
 let _feeds = new Map()
 let _homeFeedKey = null
 
-// Conta i follower dalla lista persistente: non cala quando un peer va offline,
-// cambia solo quando qualcuno fa follow/unfollow esplicito.
+
 export function countFollowers (_homeFeedKey) {
     return persistentFollowers.size
 }
@@ -179,9 +169,6 @@ export function renderDiscoveryPanel (feeds = _feeds, homeFeedKey = _homeFeedKey
     panel.innerHTML = ''
     const now = Date.now()
 
-    // Rimuovi dal map i peer scaduti:
-    // - peer diretti: dopo STALE_TIMEOUT dalla disconnessione
-    // - peer gossip: dopo STALE_TIMEOUT dall'ultimo aggiornamento (non abbiamo un disconnectedAt)
     for (const [key, info] of discoveredPeers) {
         if (info.gossip) {
             if ((now - info.lastSeen) >= STALE_TIMEOUT) discoveredPeers.delete(key)
@@ -190,11 +177,10 @@ export function renderDiscoveryPanel (feeds = _feeds, homeFeedKey = _homeFeedKey
         }
     }
 
-    // Deduplicazione per feedKey: teniamo solo l'entry più recente per ogni feed
     const seenFeedKeys = new Map()
     for (const [, info] of discoveredPeers) {
         if (!info.feedKey) continue
-        if (info.feedKey === homeFeedKey) continue  // non mostrare noi stessi
+        if (info.feedKey === homeFeedKey) continue
         const existing = seenFeedKeys.get(info.feedKey)
         if (!existing || info.lastSeen > existing.lastSeen) {
             seenFeedKeys.set(info.feedKey, info)
@@ -204,7 +190,6 @@ export function renderDiscoveryPanel (feeds = _feeds, homeFeedKey = _homeFeedKey
     const toRender = [...seenFeedKeys.values()]
 
     for (const info of toRender) {
-        // I peer gossip non hanno connessione diretta: stato sempre "visto" (dot giallo)
         const isOnline = !info.gossip && !info.disconnectedAt && (now - info.lastSeen) < 30_000
         const isFollowing = info.feedKey && feeds.has(info.feedKey)
 
