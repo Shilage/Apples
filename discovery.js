@@ -10,8 +10,32 @@ const DISCOVERY_TOPIC = b4a.from(
 // Tempo (ms) dopo la disconnessione oltre il quale il peer sparisce dalla lista
 const STALE_TIMEOUT = 2 * 60_000   // 2 minuti
 
-// remoteKeyHex -> { nick, feedKey, lastSeen }
+// remoteKeyHex -> { nick, feedKey, following, lastSeen, disconnectedAt?, gossip? }
 export const discoveredPeers = new Map()
+
+// feedKey -> { feedKey, nick } — persiste anche quando il peer è offline
+// aggiornato solo su follow/unfollow esplicito, non sulla disconnessione
+const persistentFollowers = new Map()
+
+function _persistKey (homeFeedKey) {
+    return 'apples.followers.' + (homeFeedKey || '').slice(0, 16)
+}
+
+function loadPersistentFollowers (homeFeedKey) {
+    if (!homeFeedKey) return
+    try {
+        const raw = localStorage.getItem(_persistKey(homeFeedKey))
+        if (!raw) return
+        for (const f of JSON.parse(raw)) persistentFollowers.set(f.feedKey, f)
+    } catch (_) {}
+}
+
+function savePersistentFollowers (homeFeedKey) {
+    if (!homeFeedKey) return
+    try {
+        localStorage.setItem(_persistKey(homeFeedKey), JSON.stringify([...persistentFollowers.values()]))
+    } catch (_) {}
+}
 
 let _getNickname = () => 'anon'
 let _getHomeFeedKey = () => null
@@ -53,6 +77,18 @@ export function initDiscovery ({ teardown, getNickname, getHomeFeedKey, onJoin, 
                         following: Array.isArray(msg.following) ? msg.following : [],
                         lastSeen:  Date.now()
                     })
+
+                    // Aggiorna persistentFollowers: cambia solo su follow/unfollow esplicito
+                    const myKey = _getHomeFeedKey()
+                    if (myKey && msg.feedKey) {
+                        const theyFollowMe = Array.isArray(msg.following) && msg.following.includes(myKey)
+                        if (theyFollowMe) {
+                            persistentFollowers.set(msg.feedKey, { feedKey: msg.feedKey, nick: msg.nick })
+                        } else {
+                            persistentFollowers.delete(msg.feedKey)
+                        }
+                        savePersistentFollowers(myKey)
+                    }
 
                     // Gossip: aggiungi i peer noti al nostro interlocutore ma non ancora a noi
                     if (Array.isArray(msg.knownPeers)) {
@@ -123,21 +159,17 @@ function announce (conn) {
 let _feeds = new Map()
 let _homeFeedKey = null
 
-// Conta quanti peer scoperti hanno il nostro homeFeedKey nella loro lista following.
-// I peer gossip vengono esclusi: non abbiamo la loro lista following verificata.
-export function countFollowers (homeFeedKey) {
-    if (!homeFeedKey) return 0
-    let count = 0
-    for (const [, info] of discoveredPeers) {
-        if (info.gossip) continue
-        if (Array.isArray(info.following) && info.following.includes(homeFeedKey)) count++
-    }
-    return count
+// Conta i follower dalla lista persistente: non cala quando un peer va offline,
+// cambia solo quando qualcuno fa follow/unfollow esplicito.
+export function countFollowers (_homeFeedKey) {
+    return persistentFollowers.size
 }
 
 export function setDiscoveryState (feeds, homeFeedKey) {
+    const firstTime = !_homeFeedKey && homeFeedKey
     _feeds = feeds
     _homeFeedKey = homeFeedKey
+    if (firstTime) loadPersistentFollowers(homeFeedKey)
 }
 
 export function renderDiscoveryPanel (feeds = _feeds, homeFeedKey = _homeFeedKey) {
@@ -180,6 +212,7 @@ export function renderDiscoveryPanel (feeds = _feeds, homeFeedKey = _homeFeedKey
         row.className = 'peer-row'
 
         const dot = document.createElement('span')
+        // gossip = visto di recente via intermediario → trattato come "seen" (giallo), non "unknown" (grigio)
         dot.className = 'peer-dot ' + (isOnline ? 'online' : 'seen')
 
         const infoDiv = document.createElement('div')
