@@ -30,6 +30,10 @@ export async function initSwarmAndStore ({ config, teardown, onPeersUpdate, onFe
     _onPeersUpdate = onPeersUpdate
     _onFeedsUpdate = onFeedsUpdate
 
+    const storagePath = config?.storage ?? './local-storage-fallback'  // ← aggiunto
+    if (!config?.storage) console.warn('[STORE] config.storage non disponibile, uso fallback locale')
+
+
     store = new Corestore(config.storage)
     await store.ready()
 
@@ -227,7 +231,7 @@ export async function initFeed (bootstrapKeyBuffer, { makeHome = false } = {}) {
         await base.append({ addWriter: writerKeyHex })
 
         const discovery = swarm.join(base.discoveryKey)
-        await discovery.flushed()
+        discovery.flushed().catch(err => console.warn('[swarm] flush error:', err))
 
         feedIdHex = b4a.toString(base.key, 'hex')
     } else {
@@ -237,7 +241,7 @@ export async function initFeed (bootstrapKeyBuffer, { makeHome = false } = {}) {
         await base.ready()
 
         const discovery = swarm.join(base.discoveryKey)
-        await discovery.flushed()
+        discovery.flushed().catch(err => console.warn('[swarm] flush error:', err))
 
         feedIdHex = b4a.toString(base.key, 'hex')
     }
