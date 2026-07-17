@@ -109,3 +109,4 @@ This mirrors the “follow” model:
   - `apples.avatar`
   - `apples.nickname`
 - Avatar and nickname are **not replicated** to other peers: each device can have its own local representation of the same feed.
+- This app was developed as part of my Undergraduate Thesis Work for Università di Torino
