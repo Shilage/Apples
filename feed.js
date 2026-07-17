@@ -30,7 +30,7 @@ export async function initSwarmAndStore ({ config, teardown, onPeersUpdate, onFe
     _onPeersUpdate = onPeersUpdate
     _onFeedsUpdate = onFeedsUpdate
 
-    const storagePath = config?.storage ?? './local-storage-fallback'  // ← aggiunto
+    const storagePath = config?.storage ?? './local-storage-fallback'
     if (!config?.storage) console.warn('[STORE] config.storage non disponibile, uso fallback locale')
 
 
