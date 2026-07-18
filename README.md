@@ -1,7 +1,7 @@
 # Apples – P2P Microblogging on Pear Runtime
 
 Apples is a small peer-to-peer microblogging application (Twitter-style) built on top of the **Pear Runtime**, using **Corestore**, **Autobase**, and **Hyperswarm** to manage distributed feeds without any central server.
-- This app was developed as part of my Undergraduate Thesis Work for Università di Torino
+- This app was developed as part of my Undergraduate Thesis Work for Università di Torino in 2025 and 2026
 
 ---
 
